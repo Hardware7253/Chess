@@ -1,0 +1,1 @@
+pub const BOARD_SIZE: [i8; 2] = [8, 8];

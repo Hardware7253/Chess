@@ -1,213 +1,43 @@
 use std::io;
 
-fn trash() {
-        /*
-    struct Piece {
-        name: String,
-        identifier: u8,
-        value: u8,
+// Definitions for terminology used accross the project
+/*  
+    // LIN
+    // Used in names like move_lin
+    Linear coordinate, usually abreviated to lin refers to the coordinate system this engine uses for the board.
+    It works by giving each square a uniqie number (or its linear coordinate). These numbers start from 0 at the bottom right of the board.
+    
+    //A representation of LIN coordinates on a chess board, with CCN coordinates along the sides
+    8   56, 57, 58, 59, 60, 61, 62, 63
+    7   48. 49, 50, 51, 52, 53, 54, 55,
+    6   40, 41, 42, 43, 44, 45, 46, 47,
+    5   32, 33, 34, 35, 36, 37, 38, 39
+    4   24, 25, 26, 27, 28, 29, 30, 31
+    3   16, 17, 18, 19, 20, 21, 22, 23,
+    2   08, 09, 10, 11, 12, 13, 14, 15,
+    1   00, 01, 02, 03, 04, 05, 06, 07,
 
-        white: Option<bool>,
+        A,  B,  C,  D,  E,  F,  G,  H
 
-        sliding: bool,
-        coordinate: Option<i8>,
-        movement_directions: [i8; 8],
-        capture_directions: [i8; 8],
+    This system is used so the board can easily be stored in a standard 1 dimensional array
 
-        move_count: u32,
-    }
+    // CART
+    // Used in names like: move_cart
+    Cartesian (x, y) coordinates, usually abreviated to cart.
 
-    impl Piece {
-        fn pawn() -> Piece {
-            Piece {
-                name: String::from("Pawn"),
-                identifier: 1,
-                value: 1,
-        
-                white: None,
-        
-                sliding: false,
-                coordinate: None,
-                movement_directions: [8, 0, 0, 0, 0, 0, 0, 0],
-                capture_directions: [-7, 9, 0, 0, 0, 0, 0 ,0],
-        
-                move_count: 0,
-            }
-        }
+    // CCN
+    // Used in names like ccn_to_cart
+    Chess coordinate notation (E.g. a2), usually abreviated to ccn
 
-        fn rook() -> Piece {
-            Piece {
-                name: String::from("Rook"),
-                identifier: 2,
-                value: 5,
-        
-                white: None,
-        
-                sliding: true,
-                coordinate: None,
-                movement_directions: [1, -1, 8, -8, 0, 0, 0, 0],
-                capture_directions: [1, -1, 8, -8, 0, 0, 0, 0],
-        
-                move_count: 0,
-            }
-        }
+    // BOARD
+    // Used in names like board
+    Board is a chess board array, the array is indexed by a LIN coordinate
 
-        fn knight() -> Piece {
-            Piece {
-                name: String::from("Knight"),
-                identifier: 3,
-                value: 3,
-        
-                white: None,
-        
-                sliding: false,
-                coordinate: None,
-                movement_directions: [17, -17, 15, -15, 6, -6, 10, -10],
-                capture_directions: [17, -17, 15, -15, 6, -6, 10, -10],
-        
-                move_count: 0,
-            }
-        }
+    // DLIN, DCART
+    // Used in names like: dlin, dcart
+    Shorthand for delta lin, or delta cart. It is used when a transformation is being applied to a coordinate
 
-        fn bishop() -> Piece {
-            Piece {
-                name: String::from("Bishop"),
-                identifier: 4,
-                value: 3,
-        
-                white: None,
-        
-                sliding: true,
-                coordinate: None,
-                movement_directions: [9, -9, 7, -7, 0, 0, 0, 0],
-                capture_directions: [9, -9, 7, -7, 0, 0, 0, 0],
-        
-                move_count: 0,
-            }
-        }
-
-        fn queen() -> Piece {
-            Piece {
-                name: String::from("Queen"),
-                identifier: 5,
-                value: 9,
-        
-                white: None,
-        
-                sliding: true,
-                coordinate: None,
-                movement_directions: [1, -1, 8, -8, 9, -9, 7, -7],
-                capture_directions: [1, -1, 8, -8, 9, -9, 7, -7],
-        
-                move_count: 0,
-            }
-        }
-
-        fn king() -> Piece {
-            Piece {
-                name: String::from("King"),
-                identifier: 6,
-                value: 255,
-        
-                white: None,
-        
-                sliding: false,
-                coordinate: None,
-                movement_directions: [1, -1, 8, -8, 9, -9, 7, -7],
-                capture_directions: [1, -1, 8, -8, 9, -9, 7, -7],
-        
-                move_count: 0,
-            }
-        }
-    }
-    */
-
-    /*
-    struct Piece {
-        value: i8,
-
-        sliding: bool,
-        movement_directions: [i8; 8],
-        capture_directions: [i8; 8],
-
-        move_count: i32,
-    }
-
-    impl Piece {
-        fn pawn() -> Piece {
-            Piece {
-                value: 1,
-        
-                sliding: false,
-                movement_directions: [8, 0, 0, 0, 0, 0, 0, 0],
-                capture_directions: [-7, 9, 0, 0, 0, 0, 0 ,0],
-        
-                move_count: 0,
-            }
-        }
-
-        fn rook() -> Piece {
-            Piece {
-                value: 5,
-        
-                sliding: true,
-                movement_directions: [1, -1, 8, -8, 0, 0, 0, 0],
-                capture_directions: [1, -1, 8, -8, 0, 0, 0, 0],
-        
-                move_count: 0,
-            }
-        }
-
-        fn knight() -> Piece {
-            Piece {
-                value: 3,
-
-                sliding: false,
-                movement_directions: [17, -17, 15, -15, 6, -6, 10, -10],
-                capture_directions: [17, -17, 15, -15, 6, -6, 10, -10],
-        
-                move_count: 0,
-            }
-        }
-
-        fn bishop() -> Piece {
-            Piece {
-                value: 3,
-        
-                sliding: true,
-                movement_directions: [9, -9, 7, -7, 0, 0, 0, 0],
-                capture_directions: [9, -9, 7, -7, 0, 0, 0, 0],
-        
-                move_count: 0,
-            }
-        }
-
-        fn queen() -> Piece {
-            Piece {
-                value: 9,
-
-                sliding: true,
-                movement_directions: [1, -1, 8, -8, 9, -9, 7, -7],
-                capture_directions: [1, -1, 8, -8, 9, -9, 7, -7],
-        
-                move_count: 0,
-            }
-        }
-
-        fn king() -> Piece {
-            Piece {
-                value: 127,
-
-                sliding: false,
-                movement_directions: [1, -1, 8, -8, 9, -9, 7, -7],
-                capture_directions: [1, -1, 8, -8, 9, -9, 7, -7],
-        
-                move_count: 0,
-            }
-        }
-    }
-    */
-}
+*/
 
 
 
@@ -218,17 +48,20 @@ fn main() {
     // Check custom fen strings with defualt fen strings to tell if piece have moved
     // Giberish
 
+    // Get one pieces array to use for the entire program
+    let pieces = chess::piece::info::Piece::instantiate_all();
+
     //let board = board::fen::decode("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
     let board = chess::fen::decode("8/8/6P1/8/8/8/8/8");
     println!("{:?}", board);
     
-    let num = get_user_coordinates("Enter a coordinate:");
-    println!("{}", num);
+    let coordinates = get_user_coordinates("Enter a coordinate:");
+    println!("{:?}", coordinates);
 }
 
-// Get coordinate input from the user and convert it to chess coordinates
-fn get_user_coordinates(message: &str) -> i8 {
-    let cartesian_coordinates = loop {
+// Get CCN coordinate from the user and convert it to standard cartesian coordinates
+fn get_user_coordinates(message: &str) -> [i8; 2] {
+    let coordinates = loop {
         println!("{}", message);
 
         // Get user input as a string
@@ -238,12 +71,12 @@ fn get_user_coordinates(message: &str) -> i8 {
             .expect("Failed to read input");
 
         let pos_vec: Vec<char> = pos.chars().collect(); // Convert string to a vector of chars
-        let result = chess::helpers::coordinate_conversion::chess_to_cartesian(pos_vec); // Use chess_to_cartesian to convert chess coordinate notation to cartesian coordinates
+        let result = chess::ccn_to_cart(pos_vec);
 
-        // If the chess_to_engine function fails provide an error and allow the user to try again
+        // If the chess_to_engine function fails, provide an error and allow the user to try again
         let coordinates = match result {
             Ok(c) => c,
-            Err(e) => {
+            Err(_) => {
                 println!("Please use correct coordinate formatting (E.g. a1). This is case sensetive.");
                 println!();
                 continue
@@ -253,52 +86,6 @@ fn get_user_coordinates(message: &str) -> i8 {
         println!();
         break coordinates
     };
-    chess::helpers::coordinate_conversion::cartesian_to_number(cartesian_coordinates, 8) // Convert cartesian coordinates to board coordinates
+
+    coordinates
 }
-
-    /*
-
-    // Chess coordinates
-        +---+---+---+---+---+---+---+---+
-    8   |   |   |   |   |   |   |   |   |
-        +---+---+---+---+---+---+---+---+
-    7   |   |   |   |   |   |   |   |   |
-        +---+---+---+---+---+---+---+---+
-    6   |   |   |   |   |   |   |   |   |
-        +---+---+---+---+---+---+---+---+
-    5   |   |   |   |   |   |   |   |   |
-        +---+---+---+---+---+---+---+---+
-    4   |   |   |   |   |   |   |   |   |
-        +---+---+---+---+---+---+---+---+
-    3   |   |   |   |   |   |   |   |   |
-        +---+---+---+---+---+---+---+---+
-    2   |   |   |   |   |   |   |   |   |
-        +---+---+---+---+---+---+---+---+
-    1   |   |   |   |   |   |   |   |   |
-        +---+---+---+---+---+---+---+---+
-         
-          a   b   c   d   e   f   g   h
-
-
-    // Cartesian coordinates
-        +---+---+---+---+---+---+---+---+
-    7   |   |   |   |   |   |   |   |   |
-        +---+---+---+---+---+---+---+---+
-    6   |   |   |   |   |   |   |   |   |
-        +---+---+---+---+---+---+---+---+
-    5   |   |   |   |   |   |   |   |   |
-        +---+---+---+---+---+---+---+---+
-    4   |   |   |   |   |   |   |   |   |
-        +---+---+---+---+---+---+---+---+
-    3   |   |   |   |   |   |   |   |   |
-        +---+---+---+---+---+---+---+---+
-    2   |   |   |   |   |   |   |   |   |
-        +---+---+---+---+---+---+---+---+
-    1   |   |   |   |   |   |   |   |   |
-        +---+---+---+---+---+---+---+---+
-    0   |   |   |   |   |   |   |   |   |
-        +---+---+---+---+---+---+---+---+
-         
-          0   1   2   3   4   5   6   7
-
-    */
