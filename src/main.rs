@@ -51,8 +51,8 @@ fn main() {
     // Get one pieces array to use for the entire program
     let pieces = chess::piece::info::Piece::instantiate_all();
 
-    //let board = board::fen::decode("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-    let board = chess::fen::decode("8/8/6P1/8/8/8/8/8");
+    //let board = chess::fen::decode("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+    let board = chess::fen::decode("8/8/5PPP/8/8/8/8/8");
     println!("{:?}", board);
     
     let coordinates = get_user_coordinates("Enter a coordinate:");
