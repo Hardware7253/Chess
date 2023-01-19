@@ -30,7 +30,7 @@ pub mod info {
         // The number that indexed the sub array for condition_adj, is reused for mdirs_cap when finding the movement direction for the capture
         // So the condition in condition_adj and direction in mdirs_cap have to correspond
         pub condition_adj: Option<[[i8; 2]; 2]>, 
-        pub condition_self_y: Option<i8>, // Condition for what y coordinate the piece performing the capture has to be at
+        pub condition_self_y: Option<i8>, // Condition for what y coordinates the piece performing the capture has to be at
         pub condition_subj_moves: Option<i8>, // Condition for how many moves the enemy piece found from conition_adj has to have made
     }
 
@@ -294,14 +294,15 @@ pub mod moves {
 
     // Generates all possible moves given a single piece
     pub fn gen_moves(
-        piece_coordinate: [i8; 2],
+        piece_coordinates: [i8; 2],
         board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
         turns_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
         pieces: [info::Piece; 6])
         -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
-
+        
+        // Piece information -----------------------------------------------------------------------------------------------------------
         // Retrieve additional information on the piece
-        let id = board[usize::try_from(piece_coordinate[0]).unwrap()][usize::try_from(piece_coordinate[1]).unwrap()];
+        let id = board[usize::try_from(piece_coordinates[0]).unwrap()][usize::try_from(piece_coordinates[1]).unwrap()];
         let mdirs = pieces[usize::try_from(id - 1).unwrap()].mdirs;
         let mut mdir_no = pieces[usize::try_from(id - 1).unwrap()].mdir_no;
         let slides = pieces[usize::try_from(id - 1).unwrap()].sliding;
@@ -330,21 +331,16 @@ pub mod moves {
             None => conditional_capture = false,
         };
 
-        /*
         // Unwrap Option<T> struct fields
-        let mdirs_cap = mdirs_cap.unwrap_or([[0i8; 2]; 2]);
-        let condition_adj = condition_adj.unwrap_or([[0i8; 2]; 2]);
-        let condition_self_y = condition_self_y.unwrap_or(0);
-        let condition_subj_moves = condition_subj_moves.unwrap_or(0);
-        */
-
         let mdirs_cap = unwrap_def(mdirs_cap, [[0i8; 2]; 2]);
         let condition_adj = unwrap_def(condition_adj, [[0i8; 2]; 2]);
         let condition_self_y = unwrap_def(condition_self_y, 0);
         let condition_subj_moves = unwrap_def(condition_subj_moves, 0);
 
         let mut moves_board = [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]];
+        // Piece information -----------------------------------------------------------------------------------------------------------
 
+        // Moves calculation -----------------------------------------------------------------------------------------------------------
         // If the piece is sliding set repeats to the maximum ammount it needs to be for the current board size
         // Repeats makes one mdir apply repeatedly until it reaches the end of the board
         let mut repeats: usize = 1;
@@ -354,99 +350,106 @@ pub mod moves {
             }
             repeats = BOARD_SIZE[1];
         }
-
+        
         for i in 0..mdir_no {
-            let mut piece_coordinate_current = piece_coordinate;
+            let mut piece_coordinates_current = piece_coordinates;
             for j in 0..repeats {
-                // Get the pieces coordinate after applying the x and y coordinate change from mdirs array
-                let new_coordinate = [
-                    piece_coordinate_current[0] + mdirs[i][0],
-                    piece_coordinate_current[1] + mdirs[i][1],
+
+                // Get the pieces coordinates after applying the x and y coordinates change from mdirs array
+                let move_coordinates = [
+                    piece_coordinates_current[0] + mdirs[i][0],
+                    piece_coordinates_current[1] + mdirs[i][1],
                 ];
 
-                // Get special capture coordinate when applicable
-                let mut new_coordinate_cap = [0i8; 2];
-                let mut new_coordinates_len = 1;
+                // Get special capture coordinates when applicable
+                let mut capture_coordinates = [0i8; 2];
+                let mut mca_len = 1;
                 if special_capture && i < 2 {
-                    new_coordinate_cap = [
-                        piece_coordinate_current[0] + mdirs_cap[i][0],
-                        piece_coordinate_current[1] + mdirs_cap[i][1],
+                    capture_coordinates = [
+                        piece_coordinates_current[0] + mdirs_cap[i][0],
+                        piece_coordinates_current[1] + mdirs_cap[i][1],
                     ];
-                    new_coordinates_len = 2;
+                    mca_len = 2;
                 }
 
-                // Get conditional capture coordinate when applicable
+                // Calculate Condition capture moves
                 if conditional_capture && i < 2 {
-                    let new_coordinate_condition = [
-                        piece_coordinate_current[0] + condition_adj[i][0],
-                        piece_coordinate_current[1] + condition_adj[i][1],
+                    // Get condition coordinates
+                    let condition_coordinates = [
+                        piece_coordinates_current[0] + condition_adj[i][0],
+                        piece_coordinates_current[1] + condition_adj[i][1],
                     ];
 
-                    // Do conditional capture when conditions are met ------------------------------------------------------------------------------------------------------------- En passant broken, check Option<T> unwraps
-                    if !friendly_piece(id, index_board(new_coordinate_condition, board)) { // Condition square must be occupied by an enemy piece
-                        if index_board(new_coordinate_condition, turns_board) == condition_subj_moves { // Piece in condition square must have moved condition_subj_moves times
-                            if piece_coordinate_current[1] == condition_self_y { // Piece performing the special capture must be at y coordinate condition_self_y
+                    // Do conditional capture when conditions are met
+                    if !friendly_piece(id, index_board(condition_coordinates, board)) { // Condition square must be occupied by an enemy piece
+                        if index_board(condition_coordinates, turns_board) == condition_subj_moves { // Piece in condition square must have moved condition_subj_moves times
+                            if piece_coordinates_current[1] == condition_self_y { // Piece performing the special capture must be at y coordinates condition_self_y
 
-                                if valid_move(id, new_coordinate_cap, board, false) {
-                                    moves_board[usize::try_from(new_coordinate_cap[0]).unwrap()][usize::try_from(new_coordinate_cap[1]).unwrap()] = 1;
+                                //                                                   ---- Last field is false because the piece in the condition_coordinates gets captured not the coordinates where the piece moved to
+                                if valid_move(id, capture_coordinates, board, false, true) {
+                                    moves_board[usize::try_from(capture_coordinates[0]).unwrap()][usize::try_from(capture_coordinates[1]).unwrap()] = 1; // Set the capture coordinates to 1 to indicate the piece can move there
+                                    moves_board[usize::try_from(condition_coordinates[0]).unwrap()][usize::try_from(condition_coordinates[1]).unwrap()] = -1; // Set the condition coordinates to -1 to indicate the enemy piece should be captured
                                 }
                             }
                         }
                     }
                 }
 
-                let new_coordinates = [new_coordinate, new_coordinate_cap];
-                println!("{:?}", new_coordinates);
-                //println!("{}", new_coordinates_len);
-
+                // Calculate normal and special capture moves
+                let move_coordinates_array = [move_coordinates, capture_coordinates];
                 let mut force_capture = false;
-                for c in 0..new_coordinates_len {
-                    println!("{}", c);
-                    
-                    // Only allow capturing of pieces if the piece doesn't have special capture moves
-                    if valid_move(id, new_coordinates[c], board, force_capture) {
-                        let new_coordinate_valid = new_coordinates[c];
+                let mut force_no_capture = special_capture;
 
-                        moves_board[usize::try_from(new_coordinate_valid[0]).unwrap()][usize::try_from(new_coordinate_valid[1]).unwrap()] = 1;
-                        piece_coordinate_current = new_coordinate_valid;
-                        println!("{:?}", piece_coordinate_current);
+                for c in 0..mca_len {
+                    if valid_move(id, move_coordinates_array[c], board, force_capture, force_no_capture) {
+                        let move_coordinates = move_coordinates_array[c];
+
+                        moves_board[usize::try_from(move_coordinates[0]).unwrap()][usize::try_from(move_coordinates[1]).unwrap()] = 1;
+                        piece_coordinates_current = move_coordinates;
                     }
+
+                    //force_no_capture is initially true if the piece has a special capture, this is because the pieces normal moves should not be able to capture.
+                    //E.g. A pawn cannot capture by moving forwards, it has to capture diagonally.
+                    //force_capture is initially false.
+                    // Both of these variable are inverted after the first loop to match the behaviour of capture_coordinates.
                     force_capture = true;
+                    force_no_capture = !force_no_capture;
                 }
             }
         }
         moves_board
+        // Moves calculation -----------------------------------------------------------------------------------------------------------
     }
 
-    // Used for validating a new move direction for a piece
-    pub fn valid_move(id: i8, new_coordinate: [i8; 2], board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], force_capture: bool) -> bool {
-        if fits_in_board(new_coordinate) {
-            let new_coordinate_id =  index_board(new_coordinate, board);
+    // Checks if coordinates a piece is trying to move to exists, is empty, or is occupied by an enemy that can be captured
+    pub fn valid_move(id: i8, move_coordinates: [i8; 2], board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], force_capture: bool, force_no_capture: bool) -> bool {
+        if fits_in_board(move_coordinates) {
+            let move_coordinates_id =  index_board(move_coordinates, board);
 
             // The move is valid if the move square is empty
-            if new_coordinate_id == 0 && !force_capture {
+            if move_coordinates_id == 0 && !force_capture {
                 return true;
             }
 
             // The move is valid if the piece in the move square is an enemy
-            if !friendly_piece(id, new_coordinate_id) && new_coordinate_id != 0 {
+            if !friendly_piece(id, move_coordinates_id) && move_coordinates_id != 0 && !force_no_capture {
                 return true;
             }
         }
         false
     }
 
-    // Check if a given coordinate is valid on the chess board
-    pub fn fits_in_board(coordinate: [i8; 2]) -> bool {
-        if (coordinate[0] >= 0) && (coordinate[0] < BOARD_SIZE[0].try_into().unwrap()) && (coordinate[1] >= 1) && (coordinate[1] < BOARD_SIZE[1].try_into().unwrap()) {
+    // Check if a given coordinates is valid on the chess board
+    pub fn fits_in_board(coordinates: [i8; 2]) -> bool {
+        if (coordinates[0] >= 0) && (coordinates[0] < BOARD_SIZE[0].try_into().unwrap()) && (coordinates[1] >= 1) && (coordinates[1] < BOARD_SIZE[1].try_into().unwrap()) {
             return true;
         }
         false
     }
 
-    // Returns the value at a given coordinate on a board array
-    pub fn index_board(coordinate: [i8; 2], board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> i8 {
-        board[usize::try_from(coordinate[0]).unwrap()][usize::try_from(coordinate[1]).unwrap()]
+    // Returns the value at a given coordinates on a board array
+    pub fn index_board(coordinates: [i8; 2], board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> i8 {
+        board[usize::try_from(coordinates[0]).unwrap()][usize::try_from(coordinates[1]).unwrap()]
     }
 
     // Detects friendly pieces given 2 piece ids
@@ -513,27 +516,18 @@ mod tests {
                 [0, 0, 0, 0, 0, 0, 0, 0]
             ];
 
+            let c = -1; // Capture
+
             let expected: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] = [
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 1, 0, 0],
+                [0, 0, 0, 0, c, 1, 0, 0],
                 [0, 0, 0, 0, 0, 1, 0, 0],
                 [0, 0, 0, 0, 0, 1, 0, 0]
             ];
-
-            /*
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 1, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0]
-            */
 
             let move_board = moves::gen_moves(
                 [6, 4],
@@ -550,7 +544,7 @@ mod tests {
             let board = fen::decode("8/8/8/4p3/3B4/8/8/8");
             let bb = info::IDS[3] * -1;
 
-            assert_eq!(moves::valid_move(bb, [4, 4], board, false), false);
+            assert_eq!(moves::valid_move(bb, [4, 4], board, false, false), false);
         }
 
         #[test]

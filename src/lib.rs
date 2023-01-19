@@ -3,13 +3,13 @@ pub mod piece;
 pub mod board;
 
 // Converts chess coordinate notation (a2) to cartesian coordinates (x, y)
-pub fn ccn_to_cart(board_number: Vec<char>) -> Result<[i8; 2], ()> {
+pub fn ccn_to_cart(ccn: Vec<char>) -> Result<[i8; 2], ()> {
 
     // Turn chars into their respective ASCII values
-    let x = board_number[0] as i8 - 97;
-    let y = board_number[1] as i8 - 49;
+    let x = ccn[0] as i8 - 97;
+    let y = ccn[1] as i8 - 49;
 
-    // Get board x and y max coordinate
+    // Get board max coordinates
     let bx = board::BOARD_SIZE[0] - 1;
     let by = board::BOARD_SIZE[1] - 1;
 
@@ -21,8 +21,8 @@ pub fn ccn_to_cart(board_number: Vec<char>) -> Result<[i8; 2], ()> {
         return Err(())
     }
 
-    let engine_coordinates: [i8; 2] = [x, y];
-    Ok(engine_coordinates)
+    let cart: [i8; 2] = [x, y];
+    Ok(cart)
 }
 
 // Return true if a char is uppercase
