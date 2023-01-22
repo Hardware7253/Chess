@@ -285,7 +285,7 @@ pub mod moves {
         let mut moves_board = [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]];
         for x in 0..BOARD_SIZE[0] {
             for y in 0..BOARD_SIZE[1] {
-                let id = get_board([x.try_into().unwrap(), y.try_into().unwrap()], board); // Get id of piece at board coordinates (x, y)
+                let id = board[x][y]; // Get id of piece at board coordinates (x, y)
 
                 if piece_white(id) == gen_all_white && id != 0 { // Check piece type matches piece type defined in gen_all_white
                     let piece_coordinates = [x.try_into().unwrap(), y.try_into().unwrap()];
@@ -312,8 +312,6 @@ pub mod moves {
 
         let mut moves_board = starting_moves_board;
         
-        // Piece information -----------------------------------------------------------------------------------------------------------
-        // Retrieve additional information on the piece
 
         // Get piece id
         let id = get_board(piece_coordinates, board);
@@ -321,12 +319,14 @@ pub mod moves {
             return [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]];
         }
 
+        // If the piece has a negative id change it to positive so it can be used to index pieces array
         let mut pieces_index = id;
         if pieces_index < 0 {
             pieces_index = pieces_index * -1;
         }
-        pieces_index = pieces_index - 1;
+        pieces_index = pieces_index - 1; // -1 because piece ids start from 1 not 0
 
+        // mdirs information (movement directions)
         let mdirs = pieces[usize::try_from(pieces_index).unwrap()].mdirs;
         let mut mdir_no = pieces[usize::try_from(pieces_index).unwrap()].mdir_no;
         let slides = pieces[usize::try_from(pieces_index).unwrap()].sliding;
@@ -360,10 +360,6 @@ pub mod moves {
         let condition_adj = unwrap_def(condition_adj, [[0i8; 2]; 2]);
         let condition_self_y = unwrap_def(condition_self_y, 0);
         let condition_subj_moves = unwrap_def(condition_subj_moves, 0);
-        // Piece information -----------------------------------------------------------------------------------------------------------
-
-        // Moves calculation -----------------------------------------------------------------------------------------------------------
-
         
 
         // Generate special capture moves
@@ -376,8 +372,14 @@ pub mod moves {
                     piece_coordinates[1] + mdirs_cap[i][1],
                 ];
 
-                if valid_move(id, capture_coordinates, board, true, false) {
-                    moves_board = set_board(capture_coordinates, 1, moves_board);
+                if fits_in_board(capture_coordinates) { // Check capture coordinates fit in the board
+                    let capture_coordinates_id = get_board(capture_coordinates, board);
+                    if !friendly_piece(id, capture_coordinates_id) && capture_coordinates_id != 0 { // Check there is a piece to capture
+
+
+                        // Set moves_board to 1 at the capture coordinates to indicate that the piece can move there
+                        moves_board = set_board(capture_coordinates, 1, moves_board);
+                    }
                 }
             } 
         }
@@ -399,19 +401,19 @@ pub mod moves {
                 ];
     
                 // Do conditional capture when conditions are met
-                if fits_in_board(capture_coordinates) && fits_in_board(condition_coordinates) {
+                if fits_in_board(capture_coordinates) && fits_in_board(condition_coordinates) { // Check both the capture and condition coordinates fit in the board
+
+                    // Check conditions
                     if get_board(condition_coordinates, last_turn_board) == 1 { // Piece in condition square must have moved last turn
                         if !friendly_piece(id, get_board(condition_coordinates, board)) { // Condition square must be occupied by an enemy piece
                             if get_board(condition_coordinates, turns_board) == condition_subj_moves { // Piece in condition square must have moved condition_subj_moves times
                                 if piece_coordinates[1] == condition_self_y { // Piece performing the special capture must be at y coordinates condition_self_y
-    
-                                    //                                                   ---- Last field is false because the piece in the condition_coordinates gets captured not the coordinates where the piece moved to
-                                    if valid_move(id, capture_coordinates, board, false, true) {
+                                    if get_board(capture_coordinates, board) == 0 { // Square where the piece moves to must be empty
 
-                                        // Set the capture coordinates to 1 to indicate the piece can move there
+                                        // Set moves_board to 1 at the capture coordinates to indicate that the piece can move there
                                         moves_board = set_board(capture_coordinates, 1, moves_board); 
 
-                                        // Set the condition coordinates to -1 to indicate the enemy piece should be capture
+                                        // Set moves_board to -1 at the condition coordinates to indicate that the piece there should be captured
                                         moves_board = set_board(condition_coordinates, -1, moves_board); 
                                     }
                                 }
@@ -433,6 +435,7 @@ pub mod moves {
             repeats = BOARD_SIZE[1];
         }
         
+        // Generate standard moves
         for i in 0..mdir_no {
             let mut piece_coordinates_current = piece_coordinates;
             for j in 0..repeats {
@@ -443,21 +446,25 @@ pub mod moves {
                     piece_coordinates_current[1] + mdirs[i][1],
                 ];
 
-                if valid_move(id, move_coordinates, board, false, false) {
-                    moves_board = set_board(move_coordinates, 1, moves_board);
-                    piece_coordinates_current = move_coordinates;
+                if fits_in_board(move_coordinates) { // Check move coordinates fit in the board
+                    let move_coordinates_id =  get_board(move_coordinates, board);
 
-                    if !friendly_piece(id, get_board(move_coordinates, board)) && get_board(move_coordinates, board) != 0 { // Stop repeating in direction if an enemy piece is captured
+                    if move_coordinates_id == 0 { // If the move_coordinates are empty they can be moved to
+                        moves_board = set_board(move_coordinates, 1, moves_board);
+                        piece_coordinates_current = move_coordinates;
+                    } else if !friendly_piece(id, move_coordinates_id) && move_coordinates_id != 0 { // If the move_coordinates are an enemy they can be moved to
+                        moves_board = set_board(move_coordinates, 1, moves_board);
+                        piece_coordinates_current = move_coordinates;
+                        break;
+                    } else {
                         break;
                     }
-                } else { // Stop repeating in direction if the move is not valid
+                } else {
                     break;
                 }
-                
             }
         }
         moves_board
-        // Moves calculation -----------------------------------------------------------------------------------------------------------
     }
 
     /*
@@ -528,29 +535,7 @@ pub mod moves {
         board
     }
     */
-
-    // Checks if coordinates a piece is trying to move to exists, is empty, or is occupied by an enemy that can be captured
-    pub fn valid_move(id: i8, move_coordinates: [i8; 2], board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], force_capture: bool, force_no_capture: bool) -> bool {
-        println!("");
-        println!("{:?}", move_coordinates);
-
-        if fits_in_board(move_coordinates) {
-            println!("fits");
-            let move_coordinates_id =  get_board(move_coordinates, board);
-
-            // The move is valid if the move square is empty
-            if move_coordinates_id == 0 && !force_capture {
-                return true;
-            }
-
-            // The move is valid if the piece in the move square is an enemy (capture)
-            if !friendly_piece(id, move_coordinates_id) && move_coordinates_id != 0 && !force_no_capture {
-                return true;
-            }
-        }
-        false
-    }
-
+    
     // Check if a given coordinates is valid on the chess board
     pub fn fits_in_board(coordinates: [i8; 2]) -> bool {
         if (coordinates[0] >= 0) && (coordinates[0] < BOARD_SIZE[0].try_into().unwrap()) && (coordinates[1] >= 0) && (coordinates[1] < BOARD_SIZE[1].try_into().unwrap()) {
@@ -600,26 +585,26 @@ mod tests {
         #[test]
         fn gen_all_moves_test() { // Test generating all moves for black pieces on the board
             let pieces = info::Piece::instantiate_all();
-
-            let board = fen::decode("8/2q3r1/p7/4P3/8/2N5/8/6P1");
-            let expected = fen::decode("1PPP2P1/PP1PPP1P/1PPP2P1/P1P1P1P1/2P3P1/2P3P1/6P1/6P1");
-
-            let moves_board = moves::gen_all_moves(
-                board,
-                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                pieces,
-                false,
-            );
-
-            assert_eq!(moves_board, expected);
+            for i in 0..1 {
+                let board = fen::decode("8/2q3r1/p7/4P3/8/2N5/8/6P1");
+                let expected = fen::decode("1PPP2P1/PP1PPP1P/1PPP2P1/P1P1P1P1/2P3P1/2P3P1/6P1/6P1");
+    
+                let moves_board = moves::gen_all_moves(
+                    board,
+                    [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                    [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                    pieces,
+                    false,
+                );
+    
+                assert_eq!(moves_board, expected);
+            }
         }
 
         #[test]
         fn gen_moves_test1() { // Test friendly pieces blocking a sliding pieces path
-            for i in 0..1 {
-                let pieces = info::Piece::instantiate_all();
-
+            let pieces = info::Piece::instantiate_all();
+            for i in 0..1{
                 let board = fen::decode("8/2q3r1/p7/4P3/8/2N5/8/6P1");
                 let expected = fen::decode("1PPP4/PP1PPP2/1PPP4/P1P1P3/2P5/2P5/8/8");
 
@@ -686,14 +671,6 @@ mod tests {
             );
 
             assert_eq!(moves_board, expected);
-        }
-
-        #[test]
-        fn valid_move_test() {
-            let board = fen::decode("8/8/8/4p3/3B4/8/8/8");
-            let bb = info::IDS[3] * -1;
-
-            assert_eq!(moves::valid_move(bb, [4, 4], board, false, false), false);
         }
 
         #[test]
