@@ -10,7 +10,7 @@ fn main() {
     let pieces = chess::piece::info::Piece::instantiate_all();
 
     //let board = chess::fen::decode("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-    let board = chess::fen::decode("8/8/8/5p2/8/8/8/8");
+    let board = chess::fen::decode("1PPP2P1/PP1PPP1P/2PP2P1/P1P3P1/2P3P1/6P1/6P1/8");
     println!("{:?}", board);
     
     let coordinates = get_user_coordinates("Enter a coordinate:");

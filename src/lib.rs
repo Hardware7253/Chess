@@ -61,6 +61,37 @@ pub fn unwrap_def<T>(option: Option<T>, def: T) -> T {
     }
 }
 
+// Invert board so that the coordinates match the perspective of the other player
+pub fn invert_board(board: [[i8; board::BOARD_SIZE[0]]; board::BOARD_SIZE[1]]) -> [[i8; board::BOARD_SIZE[0]]; board::BOARD_SIZE[1]] {
+    let mut board_inv = [[0i8; board::BOARD_SIZE[0]]; board::BOARD_SIZE[1]];
+
+    let board_size_x: i16 = board::BOARD_SIZE[0].try_into().unwrap();
+    let board_size_y: i16 = board::BOARD_SIZE[1].try_into().unwrap();
+
+    for x in 0..board::BOARD_SIZE[0] {
+        for y in 0..board::BOARD_SIZE[1] {
+
+            let xi: i16 = x.try_into().unwrap();
+            let yi: i16 = y.try_into().unwrap();
+
+            // Invert x
+            let mut invx = xi - {board_size_x - 1};
+            if invx < 0 {
+                invx = invx * -1;
+            }
+
+            // Invert y
+            let mut invy = yi - {board_size_y- 1};
+            if invy < 0 {
+                invy = invy * -1;
+            }
+
+            board_inv[usize::try_from(invx).unwrap()][usize::try_from(invy).unwrap()] = board[x][y];
+        }
+    }
+    board_inv
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -94,5 +125,12 @@ mod tests {
         let num_option: Option<i8> = Some(num);
 
         assert_eq!(unwrap_def(num_option, 0), num);
+    }
+
+    #[test]
+    fn invert_board_test() {
+        let board = [[1, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
+        let expected = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 1]]; 
+        assert_eq!(invert_board(board), expected);
     }
 }
