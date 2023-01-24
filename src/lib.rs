@@ -1,6 +1,7 @@
 pub mod fen;
 pub mod piece;
 pub mod board;
+use crate::board::BOARD_SIZE;
 
 // Converts chess coordinate notation (a2) to cartesian coordinates (x, y)
 pub fn ccn_to_cart(ccn: Vec<char>) -> Result<[i8; 2], ()> {
@@ -10,8 +11,8 @@ pub fn ccn_to_cart(ccn: Vec<char>) -> Result<[i8; 2], ()> {
     let y = ccn[1] as i8 - 49;
 
     // Get board max coordinates
-    let bx = board::BOARD_SIZE[0] - 1;
-    let by = board::BOARD_SIZE[1] - 1;
+    let bx = BOARD_SIZE[0] - 1;
+    let by = BOARD_SIZE[1] - 1;
 
     let bx: i8 = bx.try_into().unwrap();
     let by: i8 = by.try_into().unwrap();
@@ -62,14 +63,14 @@ pub fn unwrap_def<T>(option: Option<T>, def: T) -> T {
 }
 
 // Invert board so that the coordinates match the perspective of the other player
-pub fn invert_board(board: [[i8; board::BOARD_SIZE[0]]; board::BOARD_SIZE[1]]) -> [[i8; board::BOARD_SIZE[0]]; board::BOARD_SIZE[1]] {
-    let mut board_inv = [[0i8; board::BOARD_SIZE[0]]; board::BOARD_SIZE[1]];
+pub fn invert_board(board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
+    let mut board_inv = [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]];
 
-    let board_size_x: i16 = board::BOARD_SIZE[0].try_into().unwrap();
-    let board_size_y: i16 = board::BOARD_SIZE[1].try_into().unwrap();
+    let board_size_x: i16 = BOARD_SIZE[0].try_into().unwrap();
+    let board_size_y: i16 = BOARD_SIZE[1].try_into().unwrap();
 
-    for x in 0..board::BOARD_SIZE[0] {
-        for y in 0..board::BOARD_SIZE[1] {
+    for x in 0..BOARD_SIZE[0] {
+        for y in 0..BOARD_SIZE[1] {
 
             let xi: i16 = x.try_into().unwrap();
             let yi: i16 = y.try_into().unwrap();
@@ -92,9 +93,45 @@ pub fn invert_board(board: [[i8; board::BOARD_SIZE[0]]; board::BOARD_SIZE[1]]) -
     board_inv
 }
 
+// Check if a given coordinates is valid on the chess board
+pub fn fits_in_board(coordinates: [i8; 2]) -> bool {
+    if (coordinates[0] >= 0) && (coordinates[0] < BOARD_SIZE[0].try_into().unwrap()) && (coordinates[1] >= 0) && (coordinates[1] < BOARD_SIZE[1].try_into().unwrap()) {
+        return true;
+    }
+    false
+}
+
+// Returns the value at a given coordinates on a board array
+pub fn get_board(coordinates: [i8; 2], board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> i8 {
+    board[usize::try_from(coordinates[0]).unwrap()][usize::try_from(coordinates[1]).unwrap()]
+}
+
+// Returns the original board, with the value at coordinates
+pub fn set_board(coordinates: [i8; 2], value: i8, mut board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
+    board[usize::try_from(coordinates[0]).unwrap()][usize::try_from(coordinates[1]).unwrap()] = value;
+    board
+}
+
+// Detects friendly pieces given 2 piece ids
+pub fn friendly_piece(p1: i8, p2: i8) -> bool {
+    if p1 * p2 > 0 {
+        true
+    } else {
+        false
+    }
+}
+
+// Returns true if a piece is white
+pub fn piece_white(id: i8) -> bool {
+    if id < 0 {
+        return false;
+    }
+    true
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::piece::info;    use super::*;
 
     #[test]
     fn ccn_to_cart_test() {
@@ -132,5 +169,23 @@ mod tests {
         let board = [[1, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
         let expected = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 1]]; 
         assert_eq!(invert_board(board), expected);
+    }
+
+    #[test]
+    fn fits_in_board_test() {
+        assert_eq!(fits_in_board([0, -1]), false);
+    }
+
+    #[test]
+    fn get_board_test() {
+        let board = fen::decode("8/8/8/8/3P4/8/8/8");
+        let wp = info::IDS[0];
+
+        assert_eq!(get_board([3, 3], board), wp);
+    }
+
+    #[test]
+    fn friendly_piece_test() {
+        assert_eq!(friendly_piece(1, -2), false);
     }
 }

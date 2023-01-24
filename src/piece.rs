@@ -266,12 +266,34 @@ pub mod info {
         }
         id
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn id_fen_to_id_test() {
+            let pieces = Piece::instantiate_all();
+
+            for i in 0..1 {
+                assert_eq!(id_fen_to_id('n', pieces), IDS[2] * -1);
+            }
+            
+        }
+    }
 }
 
 
 pub mod moves {
     use super::*;
+
+    // Bring library functions into scope
     use crate::unwrap_def;
+    use crate::fits_in_board;
+    use crate::get_board;
+    use crate::set_board;
+    use crate::friendly_piece;
+    use crate::piece_white;
 
     // Generates all possible moves for a type of piece (white or black)
     pub fn gen_all_moves(
@@ -467,7 +489,7 @@ pub mod moves {
         moves_board
     }
 
-    /*
+    
     pub fn castle(
     piece_coordinates: [i8; 2],
     move_coordinates: [i8; 2],
@@ -479,9 +501,10 @@ pub mod moves {
 
         let id = get_board(piece_coordinates, board);
         
-        if id == pieces[5].id && get_board(piece_coordinates, turns_board) == 0 { // Check the piece being moved is a king and king has moves 0 times
+        // Check the piece being moved is a king, the king has moves 0 times, and the king is not in check
+        if id == pieces[5].id && get_board(piece_coordinates, turns_board) == 0 && get_board(piece_coordinates, enemy_moves_board) == 0 {
 
-            // king castle mdirs
+            // King castle mdirs
             let king_mdir_repeats: usize = 2; // How many times to repeat king_mdirs to get to castle position
             let king_mdirs: [[i8; 2]; 2] = [
                 [1, 0],
@@ -489,19 +512,22 @@ pub mod moves {
             ];
             
             // Rook castle mdirs
+            // Rook mdirs do not get repeated like the kings do
             let rook_mdirs: [[i8; 2]; 2] = [
                 [-2, 0],
                 [3, 0],
             ];
 
+            // Where the rooks have to be inorder to perform a castle
             let rook_coordinates: [[i8; 2]; 2] = [
-                [piece_coordinates[0] + rook_mdirs[0][0] * -1 + 1, 0],
-                [piece_coordinates[1] + rook_mdirs[0][1] * -1 + 1, 0],
+                [7, 0],
+                [0, 0],
             ];
+            println!("{:?}", rook_coordinates);
 
             // Repeat twice because there are 2 directions which a king can castle into
             for i in 0..2 {
-                if get_board(rook_coordinates[i], board) == pieces[1].id && get_board(rook_coordinates[i], turns_board) == 0 { // Check the pawns are in their original position and have moved 0 times
+                if get_board(rook_coordinates[i], board) == pieces[1].id && get_board(rook_coordinates[i], turns_board) == 0 { // Check the rook for this castle direction is in the correct position and has moved 0 times
 
                     let move_coordinates_rook = [
                         rook_coordinates[i][0] + rook_mdirs[i][0],
@@ -509,22 +535,22 @@ pub mod moves {
                     ];
 
                     let mut piece_coordinates_current = piece_coordinates;
-                    for j in 0..king_mdir_repeats + 1 {
+                    for j in 0..king_mdir_repeats {
 
                         let move_coordinates_king = [
                             piece_coordinates_current[0] + king_mdirs[i][0],
                             piece_coordinates_current[1] + king_mdirs[i][1],
                         ];
 
-                        // Ensures the king cannot castle out of check, into check, or through an enemy sightline
-                        if get_board(piece_coordinates_current, board) != 0 && get_board(piece_coordinates_current, enemy_moves_board) != 0 {
+                        // Ensures the king cannot into check or through an enemy sightline
+                        if get_board(move_coordinates_king, board) != 0 || get_board(move_coordinates_king, enemy_moves_board) != 0 {
                             break;
-                        } else if move_coordinates_king == piece_coordinates_current {
-                            let board = set_board(move_coordinates_king, id, board); // Move king to castled positon
-                            let board = set_board(piece_coordinates, 0, board); // Remove king at original position
+                        } else if move_coordinates_king == move_coordinates && j > 0 { // A castle is valid when these conditions are met and the first if conditions are not met
+                            board = set_board(move_coordinates_king, id, board); // Move king to castled positon
+                            board = set_board(piece_coordinates, 0, board); // Remove king at original position
 
-                            let board = set_board(move_coordinates_rook, get_board(rook_coordinates[i], board), board); // Move rook to castle position
-                            let board = set_board(rook_coordinates[i], 0, board); // Remove rook at original position
+                            board = set_board(move_coordinates_rook, get_board(rook_coordinates[i], board), board); // Move rook to castle position
+                            board = set_board(rook_coordinates[i], 0, board); // Remove rook at original position
                         }
                         piece_coordinates_current = move_coordinates_king;
                     }
@@ -534,81 +560,40 @@ pub mod moves {
         }
         board
     }
-    */
     
-    // Check if a given coordinates is valid on the chess board
-    pub fn fits_in_board(coordinates: [i8; 2]) -> bool {
-        if (coordinates[0] >= 0) && (coordinates[0] < BOARD_SIZE[0].try_into().unwrap()) && (coordinates[1] >= 0) && (coordinates[1] < BOARD_SIZE[1].try_into().unwrap()) {
-            return true;
-        }
-        false
-    }
 
-    // Returns the value at a given coordinates on a board array
-    pub fn get_board(coordinates: [i8; 2], board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> i8 {
-        board[usize::try_from(coordinates[0]).unwrap()][usize::try_from(coordinates[1]).unwrap()]
-    }
-
-    // Returns the original board, with the value at coordinates
-    pub fn set_board(coordinates: [i8; 2], value: i8, mut board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
-        board[usize::try_from(coordinates[0]).unwrap()][usize::try_from(coordinates[1]).unwrap()] = value;
-        board
-    }
-
-    // Detects friendly pieces given 2 piece ids
-    pub fn friendly_piece(p1: i8, p2: i8) -> bool {
-        if p1 * p2 > 0 {
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn piece_white(id: i8) -> bool {
-        if id < 0 {
-            return false;
-        }
-        true
-    }
-
-}
-
-
-#[cfg(test)]
-mod tests {
-    use crate::fen;
-    use super::*;
-
-    mod moves_tests {
+    #[cfg(test)]
+    mod tests {
+        use crate::fen;
         use super::*;
 
         #[test]
         fn gen_all_moves_test() { // Test generating all moves for black pieces on the board
             let pieces = info::Piece::instantiate_all();
+            let board = fen::decode("8/2q3r1/p7/4P3/8/2N5/8/6P1");
+            let expected = [[0, 0, 0, 0, 1, 0, 1, 0], [0, 0, 0, 0, 0, 1, 1, 1], [0, 0, 1, 1, 1, 1, 0, 1], [0, 0, 0, 0, 0, 1, 1, 1], [0, 0, 0, 0, 1, 0, 1, 0], [0, 0, 0, 0, 0, 0, 1, 0], [1, 1, 1, 1, 1, 1, 0, 1], [0, 0, 0, 0, 0, 0, 1, 0]];
+
             for i in 0..1 {
-                let board = fen::decode("8/2q3r1/p7/4P3/8/2N5/8/6P1");
-                let expected = fen::decode("1PPP2P1/PP1PPP1P/1PPP2P1/P1P1P1P1/2P3P1/2P3P1/6P1/6P1");
-    
-                let moves_board = moves::gen_all_moves(
+                let moves_board = gen_all_moves(
                     board,
                     [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                     [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                     pieces,
                     false,
                 );
-    
+
                 assert_eq!(moves_board, expected);
             }
         }
 
         #[test]
-        fn gen_moves_test1() { // Test friendly pieces blocking a sliding pieces path
+        fn sliding_test() { // Test friendly pieces blocking a sliding pieces path
             let pieces = info::Piece::instantiate_all();
+            let board = fen::decode("8/2q3r1/p7/4P3/8/2N5/8/6P1");
+            let expected = [[0, 0, 0, 0, 1, 0, 1, 0], [0, 0, 0, 0, 0, 1, 1, 1], [0, 0, 1, 1, 1, 1, 0, 1], [0, 0, 0, 0, 0, 1, 1, 1], [0, 0, 0, 0, 1, 0, 1, 0], [0, 0, 0, 0, 0, 0, 1, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
+            
             for i in 0..1{
-                let board = fen::decode("8/2q3r1/p7/4P3/8/2N5/8/6P1");
-                let expected = fen::decode("1PPP4/PP1PPP2/1PPP4/P1P1P3/2P5/2P5/8/8");
-
-                let moves_board = moves::gen_moves(
+                let moves_board = gen_moves(
                     [2, 6],
                     board,
                     [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
@@ -622,51 +607,18 @@ mod tests {
         }
 
         #[test]
-        fn gen_moves_test2() { // Test en passant
+        fn en_passant_test() { // Test en passant
             let pieces = info::Piece::instantiate_all();
             let board = fen::decode("8/8/7p/5pP1/8/8/8/8");
 
-            let turns_board = [
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0], 
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 1, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0]
-            ];
+            let expected = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, -1, 1, 0, 0], [0, 0, 0, 0, 0, 1, 0, 0], [0, 0, 0, 0, 0, 1, 0, 0]];
 
-            let last_turns_board = [
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0], 
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 1, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0]
-            ];
-
-            let c = -1; // Capture
-
-            let expected: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] = [
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, c, 1, 0, 0],
-                [0, 0, 0, 0, 0, 1, 0, 0],
-                [0, 0, 0, 0, 0, 1, 0, 0]
-            ];
-
-            let moves_board = moves::gen_moves(
+            let moves_board = gen_moves(
                 [6, 4],
                 board,
-                turns_board,
+                [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0],  [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
                 [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                last_turns_board,
+                [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
                 pieces,
             );
 
@@ -674,35 +626,39 @@ mod tests {
         }
 
         #[test]
-        fn fits_in_board_test() {
-            assert_eq!(moves::fits_in_board([0, -1]), false);
-        }
-
-        #[test]
-        fn get_board_test() {
-            let board = fen::decode("8/8/8/8/3P4/8/8/8");
-            let wp = info::IDS[0];
-
-            assert_eq!(moves::get_board([3, 3], board), wp);
-        }
-
-        #[test]
-        fn friendly_piece_test() {
-            assert_eq!(moves::friendly_piece(1, -2), false);
-        }
-    }
-    
-    mod info_tests {
-        use super::*;
-
-        #[test]
-        fn id_fen_to_id() {
+        fn left_castle_test() { // Test king trying to castle left with no obstacles
             let pieces = info::Piece::instantiate_all();
+            let board = fen::decode("8/8/8/8/8/8/8/R3K2R");
 
-            for i in 0..1 {
-                assert_eq!(info::id_fen_to_id('n', pieces), info::IDS[2] * -1);
-            }
-            
+            let result = castle(
+                [4, 0],
+                [2, 0],
+                board,
+                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                pieces,
+            );
+
+            let expected = fen::decode("8/8/8/8/8/8/8/2KR3R");
+
+            assert_eq!(result, expected);
+        }
+
+        #[test]
+        fn block_castle_test() { // Test king trying to castle right through an obstacle
+            let pieces = info::Piece::instantiate_all();
+            let board = fen::decode("8/8/8/8/8/8/8/R3K2R");
+
+            let result = castle(
+                [4, 0],
+                [6, 0],
+                board,
+                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
+                pieces,
+            );
+
+            assert_eq!(result, board);
         }
     }
 }
