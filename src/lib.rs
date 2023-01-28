@@ -62,32 +62,32 @@ pub fn unwrap_def<T>(option: Option<T>, def: T) -> T {
     }
 }
 
-// Invert board so that the coordinates match the perspective of the other player
+// Flip board so that the coordinates match the perspective of the other player
 pub fn invert_board(board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
     let mut board_inv = [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]];
-
-    let board_size_x: i16 = BOARD_SIZE[0].try_into().unwrap();
-    let board_size_y: i16 = BOARD_SIZE[1].try_into().unwrap();
 
     for x in 0..BOARD_SIZE[0] {
         for y in 0..BOARD_SIZE[1] {
 
-            let xi: i16 = x.try_into().unwrap();
-            let yi: i16 = y.try_into().unwrap();
+            // Get x and y as integers
+            let invx: i16 = x.try_into().unwrap();
+            let invy: i16 = y.try_into().unwrap();
 
-            // Invert x
-            let mut invx = xi - {board_size_x - 1};
-            if invx < 0 {
-                invx = invx * -1;
-            }
+            // Get board size in integers
+            let boardx: i16 = BOARD_SIZE[0].try_into().unwrap();
+            let boardy: i16 = BOARD_SIZE[1].try_into().unwrap();
 
-            // Invert y
-            let mut invy = yi - {board_size_y- 1};
-            if invy < 0 {
-                invy = invy * -1;
-            }
+            // Invert coordinates
+            let invx: i16 = invx - {boardx - 1};
+            let invy: i16 = invy - {boardy - 1};
+            let invx = invx.abs();
+            let invy = invy.abs();
+            
+            // Get inverted coordiantes back into usize
+            let invx: usize = usize::try_from(invx).unwrap();
+            let invy: usize = usize::try_from(invy).unwrap();
 
-            board_inv[usize::try_from(invx).unwrap()][usize::try_from(invy).unwrap()] = board[x][y];
+            board_inv[invx][invy] = board[x][y];
         }
     }
     board_inv
@@ -112,6 +112,15 @@ pub fn set_board(coordinates: [i8; 2], value: i8, mut board: [[i8; BOARD_SIZE[0]
     board
 }
 
+// Moves the value corresponding from original_coordinates to new_coordinates on the board
+// Replaces original_coordinates value with default_value
+fn move_board_value(original_coordinates: [i8; 2], new_coordinates: [i8; 2], default_value: i8, mut board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
+    let value = get_board(original_coordinates, board);
+    board = set_board(new_coordinates, value, board); // Move value to new coordinates
+    board = set_board(original_coordinates, default_value, board); // Remove value from original coordinates
+    board
+}
+
 // Detects friendly pieces given 2 piece ids
 pub fn friendly_piece(p1: i8, p2: i8) -> bool {
     if p1 * p2 > 0 {
@@ -131,7 +140,8 @@ pub fn piece_white(id: i8) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::piece::info;    use super::*;
+    use crate::piece::info;
+    use super::*;
 
     #[test]
     fn ccn_to_cart_test() {
@@ -166,8 +176,8 @@ mod tests {
 
     #[test]
     fn invert_board_test() {
-        let board = [[1, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
-        let expected = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 1]]; 
+        let board = fen::decode("rrrr4/rrrrpp2/1p1ppnq1/1ppp2q1/3P4/2PP4/BQ1PPP2/QQ3KRR");
+        let expected = fen::decode("RRK3QQ/2PPP1QB/4PP2/4P3/1q2ppp1/1qnpp1p1/2pprrrr/4rrrr");
         assert_eq!(invert_board(board), expected);
     }
 
@@ -185,7 +195,37 @@ mod tests {
     }
 
     #[test]
+    fn set_board_test() {
+        let board = [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]];
+        let result = set_board([3, 3], 1, board);
+
+        let expected = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn move_board_value_test() {
+        let board = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
+        let expected = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
+
+        let result = move_board_value(
+            [3, 3],
+            [3, 4],
+            0,
+            board,
+        );
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
     fn friendly_piece_test() {
         assert_eq!(friendly_piece(1, -2), false);
+    }
+
+    #[test]
+    fn piece_white_test() {
+        assert_eq!(piece_white(-1), false);
     }
 }
