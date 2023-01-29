@@ -69,28 +69,35 @@ pub fn invert_board(board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> [[i8; BOARD_
     for x in 0..BOARD_SIZE[0] {
         for y in 0..BOARD_SIZE[1] {
 
-            // Get x and y as integers
-            let invx: i16 = x.try_into().unwrap();
-            let invy: i16 = y.try_into().unwrap();
-
-            // Get board size in integers
-            let boardx: i16 = BOARD_SIZE[0].try_into().unwrap();
-            let boardy: i16 = BOARD_SIZE[1].try_into().unwrap();
-
-            // Invert coordinates
-            let invx: i16 = invx - {boardx - 1};
-            let invy: i16 = invy - {boardy - 1};
-            let invx = invx.abs();
-            let invy = invy.abs();
-            
-            // Get inverted coordiantes back into usize
-            let invx: usize = usize::try_from(invx).unwrap();
-            let invy: usize = usize::try_from(invy).unwrap();
-
-            board_inv[invx][invy] = board[x][y];
+            let coordinates_flip = coordinates_to_usize(flip_coordinates(coordinates_from_usize([x, y])));
+            board_inv[coordinates_flip[0]][coordinates_flip[1]] = board[x][y];
         }
     }
     board_inv
+}
+
+// Flip coordinates
+pub fn flip_coordinates(coordinates: [i8; 2]) -> [i8; 2] {
+    
+    let board_size = coordinates_from_usize(BOARD_SIZE);
+
+    // Invert coordinates
+    let coordinates_flip_x = coordinates[0] - {board_size[0] - 1};
+    let coordinates_flip_y = coordinates[1] - {board_size[1] - 1};
+    let coordinates_flip_x = coordinates_flip_x.abs();
+    let coordinates_flip_y = coordinates_flip_y.abs();
+
+    [coordinates_flip_x, coordinates_flip_y]
+}
+
+// Convert standard [i8; 2] coordinates into [usize; 2] coordinates
+pub fn coordinates_to_usize(coordinates: [i8; 2]) -> [usize; 2] {
+    [usize::try_from(coordinates[0]).unwrap(), usize::try_from(coordinates[1]).unwrap()]
+}
+
+// Convert [usize; 2] coordinates into standard [i8; 2] coordinates
+pub fn coordinates_from_usize(coordinates: [usize; 2]) -> [i8; 2] {
+    [coordinates[0].try_into().unwrap(), coordinates[1].try_into().unwrap()]
 }
 
 // Check if a given coordinates is valid on the chess board
@@ -179,6 +186,27 @@ mod tests {
         let board = fen::decode("rrrr4/rrrrpp2/1p1ppnq1/1ppp2q1/3P4/2PP4/BQ1PPP2/QQ3KRR");
         let expected = fen::decode("RRK3QQ/2PPP1QB/4PP2/4P3/1q2ppp1/1qnpp1p1/2pprrrr/4rrrr");
         assert_eq!(invert_board(board), expected);
+    }
+
+    #[test]
+    fn flip_coordinates_test() {
+        assert_eq!(flip_coordinates([0, 0]), [7, 7]);
+    }
+
+    #[test]
+    fn coordinates_to_usize_test() {
+        let coordinates_i8: [i8; 2] = [2, 2];
+        let coordinates_usize: [usize; 2] = [2, 2];
+
+        assert_eq!(coordinates_to_usize(coordinates_i8), coordinates_usize);
+    }
+
+    #[test]
+    fn coordinates_from_usize_test() {
+        let coordinates_i8: [i8; 2] = [2, 2];
+        let coordinates_usize: [usize; 2] = [2, 2];
+
+        assert_eq!(coordinates_from_usize(coordinates_usize), coordinates_i8);
     }
 
     #[test]

@@ -1,3 +1,4 @@
+use crate::fen;
 use crate::board::BOARD_SIZE;
 use crate::board::MAX_SLIDES;
 
@@ -306,6 +307,7 @@ pub mod moves {
     use crate::piece_white;
     use crate::invert_board;
     use crate::move_board_value;
+    use crate::flip_coordinates;
 
     // Generates all possible moves given a single piece, cannot generate moves for an enemy team because the pawns will move backwards
     fn gen_moves(
@@ -313,7 +315,7 @@ pub mod moves {
     board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
     turns_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
     mut moves_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], // Allows a custom starting moves_board to be set, this allows moves to be added to a pre-existing moves_board
-    last_turn_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+    last_turn_coordinates: [i8; 2],
     pieces: [info::Piece; 6])
     -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
 
@@ -425,7 +427,7 @@ pub mod moves {
                 if fits_in_board(capture_coordinates) && fits_in_board(condition_coordinates) { // Check both the capture and condition coordinates fit in the board
 
                     // Check conditions
-                    if get_board(condition_coordinates, last_turn_board) == 1 { // Piece in condition square must have moved last turn
+                    if condition_coordinates == last_turn_coordinates { // Piece in condition square must have moved last turn
                         if !friendly_piece(id, get_board(condition_coordinates, board)) { // Condition square must be occupied by an enemy piece
                             if get_board(condition_coordinates, turns_board) == condition_subj_moves { // Piece in condition square must have moved condition_subj_moves times
                                 if piece_coordinates[1] == condition_self_y { // Piece performing the special capture must be at y coordinates condition_self_y
@@ -487,7 +489,7 @@ pub mod moves {
     fn gen_all_moves(
     board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
     turns_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-    last_turn_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+    last_turn_coordinates: [i8; 2],
     pieces: [info::Piece; 6],
     gen_all_white: bool) // When true generates all white moves, generates black mvoes when false
     -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
@@ -500,7 +502,7 @@ pub mod moves {
                     if piece_white(id) == gen_all_white && id != 0 { // Check piece type matches piece type defined in gen_all_white
                         let piece_coordinates = [x.try_into().unwrap(), y.try_into().unwrap()];
     
-                        moves_board = gen_moves(piece_coordinates, board, turns_board, moves_board, last_turn_board, pieces);
+                        moves_board = gen_moves(piece_coordinates, board, turns_board, moves_board, last_turn_coordinates, pieces);
                         
                     }
                 }
@@ -513,7 +515,7 @@ pub mod moves {
     fn gen_enemy_moves(
     board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
     turns_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-    last_turn_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+    last_turn_coordinates: [i8; 2],
     pieces: [info::Piece; 6],
     caller_white: bool)
     -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
@@ -521,9 +523,9 @@ pub mod moves {
         // Get the board from the enemies perspective
         let board = invert_board(board);
         let turns_board = invert_board(turns_board);
-        let last_turn_board = invert_board(last_turn_board);
+        let last_turn_coordinates = flip_coordinates(last_turn_coordinates);
 
-        let enemy_moves = gen_all_moves(board, turns_board, last_turn_board, pieces, !caller_white);
+        let enemy_moves = gen_all_moves(board, turns_board, last_turn_coordinates, pieces, !caller_white);
         invert_board(enemy_moves) // Invert enemy moves again to get back to perspective of the caller team
     }
 
@@ -629,6 +631,32 @@ pub mod moves {
         false
     }
 
+    pub struct Boards {
+        board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+        turns_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+        last_turn_coordinates: [i8; 2],
+    }
+
+    impl Boards {
+
+        // Use to get boards to start a regular game
+        pub fn new() -> Self {
+            Boards {
+                board: fen::decode("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"),
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0i8; 2],
+            }
+        }
+
+        pub fn custom(fen: &str, turns_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], last_turn_coordinates: [i8; 2]) -> Self {
+            Boards {
+                board: fen::decode(fen),
+                turns_board: turns_board,
+                last_turn_coordinates: last_turn_coordinates,
+            }
+        }
+    }
+
     // Given original piece coordinates and move coordinates returns a new board where the piece is moved to the new coordinates
     // This only happens when the move is valid
     // EN PASSANT PIECES DO NOT GET CAPTURED
@@ -637,31 +665,33 @@ pub mod moves {
     move_coordinates: [i8; 2],
     mut board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
     mut turns_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-    last_turn_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+    last_turn_coordinates: [i8; 2],
     pieces: [info::Piece; 6])
     -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
 
         let piece_white = piece_white(get_board(piece_coordinates, board));
+        let id = get_board(piece_coordinates, board);
 
-        // Generate all enemy moves
-        let enemy_moves = gen_enemy_moves(
-            board,
-            turns_board,
-            last_turn_board,
-            pieces,
-            piece_white
-        );
+        // Castle
+        let mut castle_board = board;
+        if id == pieces[5].id {
+            let enemy_moves = gen_enemy_moves(
+                board,
+                turns_board,
+                last_turn_coordinates,
+                pieces,
+                piece_white
+            );
 
-        // Return castle board if it is valid
-        let castle_board = castle(
-            piece_coordinates,
-            move_coordinates,
-            board,
-            turns_board,
-            enemy_moves,
-            pieces
-        );
-
+            castle_board = castle(
+                piece_coordinates,
+                move_coordinates,
+                board,
+                turns_board,
+                enemy_moves,
+                pieces
+            );
+        }
         if castle_board != board {
             return castle_board;
         }
@@ -672,7 +702,7 @@ pub mod moves {
             board,
             turns_board,
             [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-            last_turn_board,
+            last_turn_coordinates,
             pieces,
         );
 
@@ -685,7 +715,7 @@ pub mod moves {
             let enemy_moves = gen_enemy_moves(
                 post_move_board,
                 turns_board,
-                last_turn_board,
+                last_turn_coordinates,
                 pieces,
                 piece_white
             );
@@ -720,7 +750,7 @@ pub mod moves {
                     board,
                     [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                     [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                    [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                    [0, 0],
                     pieces,
                 );
 
@@ -740,7 +770,7 @@ pub mod moves {
                 board,
                 [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0],  [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
                 [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
+                [5, 4],
                 pieces,
             );
 
@@ -759,7 +789,7 @@ pub mod moves {
                 board,
                 [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                [0, 0],
                 pieces,
             );
 
@@ -778,7 +808,7 @@ pub mod moves {
                 board,
                 [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                [0, 0],
                 pieces,
             );
 
@@ -796,7 +826,7 @@ pub mod moves {
                 let moves_board = gen_all_moves(
                     board,
                     [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                    [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                    [0, 0],
                     pieces,
                     true,
                 );
@@ -815,7 +845,7 @@ pub mod moves {
                 let moves_board = gen_enemy_moves(
                     board,
                     [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                    [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                    [0, 0],
                     pieces,
                     true,
                 );
@@ -879,7 +909,7 @@ pub mod moves {
             assert_eq!(result, true);
         }
         
-        // valid_move tests --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        // valid_move tests (testing quite a few unique scenarios and edge cases)---------------------------------------------------------------------------------------------------------------------------------------
         #[test]
         fn valid_move_test1() { // Test an invalid move (blocked by check)
             let pieces = info::Piece::instantiate_all();
@@ -891,7 +921,7 @@ pub mod moves {
                 [6, 5],
                 board,
                 [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                [0, 0],
                 pieces,
             );
 
@@ -912,7 +942,7 @@ pub mod moves {
                 [6, 5],
                 board,
                 [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                [0, 0],
                 pieces,
             );
 
@@ -931,7 +961,7 @@ pub mod moves {
                     [1, 2],
                     board,
                     [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                    [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                    [0, 0],
                     pieces,
                 );
     
@@ -950,7 +980,43 @@ pub mod moves {
                 [7, 7],
                 board,
                 [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                [0, 0],
+                pieces,
+            );
+
+            assert_eq!(result, board);
+        }
+
+        #[test]
+        fn valid_move_test5() { // Test king trying to move into check (where an enemy pawn puts the king in check)
+            let pieces = info::Piece::instantiate_all();
+
+            let board = fen::decode("8/8/8/8/8/8/1p6/1K6");
+
+            let result = valid_move(
+                [1, 0],
+                [0, 0],
+                board,
                 [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                [0, 0],
+                pieces,
+            );
+
+            assert_eq!(result, board);
+        }
+
+        #[test]
+        fn valid_move_test6() { // Test pawn trying to capture king by moving forwards instead of diagonal
+            let pieces = info::Piece::instantiate_all();
+
+            let board = fen::decode("6K1/6p1/8/8/8/8/8/8");
+
+            let result = valid_move(
+                [6, 6],
+                [6, 7],
+                board,
+                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                [0, 0],
                 pieces,
             );
 
