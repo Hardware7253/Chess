@@ -3,11 +3,33 @@ use crate::board::BOARD_SIZE;
 use crate::board::MAX_SLIDES;
 
 pub mod info {
+    use super::*;
+
+    #[derive(Debug, Copy, Clone, PartialEq)]
+    pub struct BoardInfo {
+        pub board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], // Game board, stores piece ids in the positions they are on the board.
+        pub turns_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], // Turns board, values correspond to a piece at the same coordinates on the game board. Values represent how many times that piece has moved from its starting position.
+        pub last_turn_coordinates: [i8; 2], // Last turn coordinates, coordinates of the piece that moved last turn.
+        pub pieces: [info::Piece; 6], // Array stores piece structs, structs contain infromation such as piece ids, movement directions, and movement types.
+    }
+
+    impl BoardInfo {
+        // Use to get boards to start a regular game
+        pub fn new() -> Self {
+            BoardInfo {
+                board: fen::decode("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"),
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0i8; 2],
+                pieces: info::Piece::instantiate_all(),
+            }
+        }
+    }
+
     // Piece ids, order must not change
     // Order                  P  R  N  B  Q  K
     pub const IDS: [i8; 6] = [1, 2, 3, 4, 5, 6];
 
-    #[derive(Debug, Copy, Clone)]
+    #[derive(Debug, Copy, Clone, PartialEq)]
     pub struct Piece {
         pub id_fen: char,
         pub id: i8,   
@@ -312,12 +334,14 @@ pub mod moves {
     // Generates all possible moves given a single piece, cannot generate moves for an enemy team because the pawns will move backwards
     fn gen_moves(
     mut piece_coordinates: [i8; 2],
-    board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-    turns_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
     mut moves_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], // Allows a custom starting moves_board to be set, this allows moves to be added to a pre-existing moves_board
-    last_turn_coordinates: [i8; 2],
-    pieces: [info::Piece; 6])
+    board_info: info::BoardInfo)
     -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
+
+        let board = board_info.board;
+        let turns_board = board_info.turns_board;
+        let last_turn_coordinates = board_info.last_turn_coordinates;
+        let pieces = board_info.pieces;
 
         // Get piece id
         let id = get_board(piece_coordinates, board);
@@ -487,45 +511,39 @@ pub mod moves {
 
     // Generates all possible moves for a type of piece (white or black)
     fn gen_all_moves(
-    board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-    turns_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-    last_turn_coordinates: [i8; 2],
-    pieces: [info::Piece; 6],
-    gen_all_white: bool) // When true generates all white moves, generates black mvoes when false
-    -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
-        
-            let mut moves_board = [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]];
-            for x in 0..BOARD_SIZE[0] {
-                for y in 0..BOARD_SIZE[1] {
-                    let id = board[x][y]; // Get id of piece at board coordinates (x, y)
-    
-                    if piece_white(id) == gen_all_white && id != 0 { // Check piece type matches piece type defined in gen_all_white
-                        let piece_coordinates = [x.try_into().unwrap(), y.try_into().unwrap()];
-    
-                        moves_board = gen_moves(piece_coordinates, board, turns_board, moves_board, last_turn_coordinates, pieces);
-                        
-                    }
+    gen_all_white: bool, // When true generates all white moves, generates black mvoes when false
+    board_info: info::BoardInfo)
+    -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {        
+        let mut moves_board = [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]];
+        for x in 0..BOARD_SIZE[0] {
+            for y in 0..BOARD_SIZE[1] {
+                let id = board_info.board[x][y]; // Get id of piece at board coordinates (x, y)
+
+                if piece_white(id) == gen_all_white && id != 0 { // Check piece type matches piece type defined in gen_all_white
+                    let piece_coordinates = [x.try_into().unwrap(), y.try_into().unwrap()];
+
+                    moves_board = gen_moves(piece_coordinates, moves_board, board_info);
                 }
             }
-            moves_board
+        }
+        moves_board
     }
 
     // Generates all moves of the enemy team
     // Inverts boards to enemy perspective to fix the problem where enemy pawns move backwards
     fn gen_enemy_moves(
-    board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-    turns_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-    last_turn_coordinates: [i8; 2],
-    pieces: [info::Piece; 6],
-    caller_white: bool)
+    caller_white: bool,
+    board_info: info::BoardInfo)
     -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
+        // Flip board info
+        let board_info = info::BoardInfo {
+            board: invert_board(board_info.board),
+            turns_board: invert_board(board_info.turns_board),
+            last_turn_coordinates: flip_coordinates(board_info.last_turn_coordinates),
+            pieces: board_info.pieces,
+        };
 
-        // Get the board from the enemies perspective
-        let board = invert_board(board);
-        let turns_board = invert_board(turns_board);
-        let last_turn_coordinates = flip_coordinates(last_turn_coordinates);
-
-        let enemy_moves = gen_all_moves(board, turns_board, last_turn_coordinates, pieces, !caller_white);
+        let enemy_moves = gen_all_moves(!caller_white, board_info);
         invert_board(enemy_moves) // Invert enemy moves again to get back to perspective of the caller team
     }
 
@@ -534,11 +552,13 @@ pub mod moves {
     fn castle(
     piece_coordinates: [i8; 2],
     move_coordinates: [i8; 2],
-    mut board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-    turns_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
     enemy_moves_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-    pieces: [info::Piece; 6])
+    board_info: info::BoardInfo)
     -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
+
+        let mut board = board_info.board;
+        let turns_board = board_info.turns_board;
+        let pieces = board_info.pieces;
 
         let id = get_board(piece_coordinates, board);
         
@@ -631,242 +651,218 @@ pub mod moves {
         false
     }
 
-    pub struct Boards {
-        board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-        turns_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-        last_turn_coordinates: [i8; 2],
-    }
-
-    impl Boards {
-
-        // Use to get boards to start a regular game
-        pub fn new() -> Self {
-            Boards {
-                board: fen::decode("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"),
-                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                last_turn_coordinates: [0i8; 2],
-            }
-        }
-
-        pub fn custom(fen: &str, turns_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], last_turn_coordinates: [i8; 2]) -> Self {
-            Boards {
-                board: fen::decode(fen),
-                turns_board: turns_board,
-                last_turn_coordinates: last_turn_coordinates,
-            }
-        }
-    }
-
     // Given original piece coordinates and move coordinates returns a new board where the piece is moved to the new coordinates
     // This only happens when the move is valid
     // EN PASSANT PIECES DO NOT GET CAPTURED
     pub fn valid_move(
     piece_coordinates: [i8; 2],
     move_coordinates: [i8; 2],
-    mut board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-    mut turns_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-    last_turn_coordinates: [i8; 2],
-    pieces: [info::Piece; 6])
-    -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
+    board_info: info::BoardInfo)
+    -> info::BoardInfo {
+
+        let board = board_info.board;
+        let turns_board = board_info.turns_board;
+        let last_turn_coordinates = board_info.last_turn_coordinates;
+        let pieces = board_info.pieces;
 
         let piece_white = piece_white(get_board(piece_coordinates, board));
         let id = get_board(piece_coordinates, board);
 
+        let mut move_valid = false;
+
         // Castle
         let mut castle_board = board;
         if id == pieces[5].id {
-            let enemy_moves = gen_enemy_moves(
-                board,
-                turns_board,
-                last_turn_coordinates,
-                pieces,
-                piece_white
-            );
-
-            castle_board = castle(
-                piece_coordinates,
-                move_coordinates,
-                board,
-                turns_board,
-                enemy_moves,
-                pieces
-            );
+            let enemy_moves = gen_enemy_moves(piece_white, board_info);
+            castle_board = castle(piece_coordinates, move_coordinates, enemy_moves, board_info);
         }
         if castle_board != board {
-            return castle_board;
+            move_valid = true;
         }
 
         // Generate possible moves for the piece at piece_coordinate
         let possible_moves = gen_moves(
             piece_coordinates,
-            board,
-            turns_board,
             [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-            last_turn_coordinates,
-            pieces,
+            board_info,
         );
 
+        let mut post_move_board = castle_board;
+        
+
+        // Board info post move
+        let mut board_info_pm = board_info;
+
         // If possible_moves at move_coordinates != 0 then the piece can move there 
-        if get_board(move_coordinates, possible_moves) != 0 {
+        if get_board(move_coordinates, possible_moves) != 0 && !move_valid {
 
             // Get board where the piece at piece_coordinates is moved to move_coordinates
-            let post_move_board = move_board_value(piece_coordinates, move_coordinates, 0, board);
+            post_move_board = move_board_value(piece_coordinates, move_coordinates, 0, board);
+            board_info_pm.board = post_move_board;
             
-            let enemy_moves = gen_enemy_moves(
-                post_move_board,
-                turns_board,
-                last_turn_coordinates,
-                pieces,
-                piece_white
-            );
+            let enemy_moves = gen_enemy_moves(piece_white, board_info_pm);
             
             let check = king_check(piece_white, post_move_board, enemy_moves, pieces);
 
+            // The move is only valid if the king isn't in check
             if !check {
-                return post_move_board; // The move is only valid if the king isn't in check
+                move_valid = true;
             }
         }
 
-        // Return original board if all checks fail
-        board
+        if move_valid {
+            // Move and increment piece turns
+            board_info_pm.turns_board = move_board_value(piece_coordinates, move_coordinates, 0, board_info_pm.turns_board);
+            let turns = get_board(move_coordinates, board_info_pm.turns_board);
+            let turns = turns + 1;
+            board_info_pm.turns_board = set_board(move_coordinates, turns, board_info_pm.turns_board);
+
+            // Set last moved piece
+            board_info_pm.last_turn_coordinates = move_coordinates;
+
+            return board_info_pm;
+        }
+        board_info
     }
     
 
     #[cfg(test)]
     mod tests {
         use crate::fen;
+        use info::BoardInfo;
         use super::*;
 
+        
         // gen_moves tests ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         #[test]
         fn queen_sliding_test() { // Test generating queen moves, where some directions are blocked by enemy or friendly pieces
-            let pieces = info::Piece::instantiate_all();
-            let board = fen::decode("8/2P5/8/P3p3/8/2Q5/8/8");
-            let expected = [[1, 0, 1, 0, 0, 0, 0, 0], [0, 1, 1, 1, 0, 0, 0, 0], [1, 1, 0, 1, 1, 1, 0, 0], [0, 1, 1, 1, 0, 0, 0, 0], [1, 0, 1, 0, 1, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0]];
-            
-            for i in 0..1{
-                let moves_board = gen_moves(
-                    [2, 2],
-                    board,
-                    [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                    [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                    [0, 0],
-                    pieces,
-                );
+            let board_info = BoardInfo {
+                board: fen::decode("8/2P5/8/P3p3/8/2Q5/8/8"),
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0i8; 2],
+                pieces: info::Piece::instantiate_all(),
+            };
 
-                assert_eq!(moves_board, expected);
-            }
+            let moves_board = gen_moves(
+                [2, 2],
+                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                board_info,
+            );
+
+            let expected = [[1, 0, 1, 0, 0, 0, 0, 0], [0, 1, 1, 1, 0, 0, 0, 0], [1, 1, 0, 1, 1, 1, 0, 0], [0, 1, 1, 1, 0, 0, 0, 0], [1, 0, 1, 0, 1, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0]];
+            assert_eq!(moves_board, expected);
         }
 
         #[test]
         fn en_passant_test() { // Test en passant
-            let pieces = info::Piece::instantiate_all();
-            let board = fen::decode("8/8/8/5pP1/8/8/8/8");
-
-            let expected = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, -1, 1, 0, 0], [0, 0, 0, 0, 0, 2, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
+            let board_info = BoardInfo {
+                board: fen::decode("8/8/8/5pP1/8/8/8/8"),
+                turns_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0],  [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
+                last_turn_coordinates: [5, 4],
+                pieces: info::Piece::instantiate_all(),
+            };
 
             let moves_board = gen_moves(
                 [6, 4],
-                board,
-                [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0],  [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
                 [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                [5, 4],
-                pieces,
+                board_info,
             );
 
+            let expected = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, -1, 1, 0, 0], [0, 0, 0, 0, 0, 2, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
             assert_eq!(moves_board, expected);
         }
 
         #[test]
         fn double_move_test() { // Test pawn double move
-            let pieces = info::Piece::instantiate_all();
-            let board = fen::decode("8/8/8/8/8/8/1P6/8");
-
-            let expected = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 2, 2, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
+            let board_info = BoardInfo {
+                board: fen::decode("8/8/8/8/8/8/1P6/8"),
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0i8; 2],
+                pieces: info::Piece::instantiate_all(),
+            };
 
             let moves_board = gen_moves(
                 [1, 1],
-                board,
                 [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                [0, 0],
-                pieces,
+                board_info,
             );
 
+            let expected = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 2, 2, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
             assert_eq!(moves_board, expected);
         }
 
         #[test]
         fn special_capture_test() { // Test pawn special capture direction
-            let pieces = info::Piece::instantiate_all();
-            let board = fen::decode("8/8/8/8/8/1pp5/2P5/8");
-
-            let expected = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
+            let board_info = BoardInfo {
+                board: fen::decode("8/8/8/8/8/1pp5/2P5/8"),
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0i8; 2],
+                pieces: info::Piece::instantiate_all(),
+            };
 
             let moves_board = gen_moves(
                 [2, 1],
-                board,
                 [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                [0, 0],
-                pieces,
+                board_info,
             );
 
+            let expected = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
             assert_eq!(moves_board, expected);
         }
         // gen_moves tests ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
         #[test]
         fn gen_all_moves_test() { // Test generating all moves for white pieces on a board
-            let pieces = info::Piece::instantiate_all();
-            let board = fen::decode("8/3b3r/5p2/b1p1p3/3p4/8/2Q2P2/R7");
+            let board_info = BoardInfo {
+                board: fen::decode("8/3b3r/5p2/b1p1p3/3p4/8/2Q2P2/R7"),
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0i8; 2],
+                pieces: info::Piece::instantiate_all(),
+            };
+
+            let moves_board = gen_all_moves(
+                true,
+                board_info,
+            );
+
             let expected = [[0, 1, 1, 1, 1, 0, 0, 0], [1, 1, 1, 0, 0, 0, 0, 0], [1, 0, 1, 1, 1, 0, 0, 0], [1, 1, 1, 0, 0, 0, 0, 0], [1, 1, 0, 1, 0, 0, 0, 0], [1, 0, 2, 2, 1, 0, 0, 0], [1, 0, 0, 0, 0, 1, 0, 0], [1, 0, 0, 0, 0, 0, 1, 0]];
-
-            for i in 0..1 {
-                let moves_board = gen_all_moves(
-                    board,
-                    [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                    [0, 0],
-                    pieces,
-                    true,
-                );
-
-                assert_eq!(moves_board, expected);
-            }
+            assert_eq!(moves_board, expected);
         }
 
         #[test]
         fn gen_enemy_moves_test() { // Test generating all enemy moves
-            let pieces = info::Piece::instantiate_all();
-            let board = fen::decode("8/p1q3r1/8/4P3/8/2N5/8/6P1");
+            let board_info = BoardInfo {
+                board: fen::decode("8/p1q3r1/8/4P3/8/2N5/8/6P1"),
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0i8; 2],
+                pieces: info::Piece::instantiate_all(),
+            };
+
+            let moves_board = gen_enemy_moves(
+                true,
+                board_info,
+            );
+
             let expected = [[0, 0, 0, 0, 2, 2, 0, 0], [0, 0, 0, 0, 0, 1, 1, 1], [0, 0, 1, 1, 1, 1, 0, 1], [0, 0, 0, 0, 0, 1, 1, 1], [0, 0, 0, 0, 1, 0, 1, 0], [0, 0, 0, 0, 0, 0, 1, 0], [1, 1, 1, 1, 1, 1, 0, 1], [0, 0, 0, 0, 0, 0, 1, 0]];
-
-            for i in 0..1 {
-                let moves_board = gen_enemy_moves(
-                    board,
-                    [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                    [0, 0],
-                    pieces,
-                    true,
-                );
-
-                assert_eq!(moves_board, expected);
-            }
+            assert_eq!(moves_board, expected);
         }
-        
+
         // castle tests ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         #[test]
         fn left_castle_test() { // Test king trying to castle left with no obstacles
-            let pieces = info::Piece::instantiate_all();
             let board = fen::decode("8/8/8/8/8/8/8/R3K2R");
+            let board_info = BoardInfo {
+                board: board,
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0i8; 2],
+                pieces: info::Piece::instantiate_all(),
+            };
 
             let result = castle(
                 [4, 0],
                 [2, 0],
-                board,
                 [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                pieces,
+                board_info,
             );
 
             let expected = fen::decode("8/8/8/8/8/8/8/2KR3R");
@@ -876,16 +872,19 @@ pub mod moves {
 
         #[test]
         fn block_castle_test() { // Test king trying to castle through an obstacle
-            let pieces = info::Piece::instantiate_all();
             let board = fen::decode("8/8/8/8/8/8/8/R3K2R");
+            let board_info = BoardInfo {
+                board: board,
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0i8; 2],
+                pieces: info::Piece::instantiate_all(),
+            };
 
             let result = castle(
                 [4, 0],
                 [6, 0],
-                board,
-                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
-                pieces,
+                board_info,
             );
 
             assert_eq!(result, board);
@@ -908,119 +907,144 @@ pub mod moves {
 
             assert_eq!(result, true);
         }
-        
+
         // valid_move tests (testing quite a few unique scenarios and edge cases)---------------------------------------------------------------------------------------------------------------------------------------
         #[test]
         fn valid_move_test1() { // Test an invalid move (blocked by check)
-            let pieces = info::Piece::instantiate_all();
-
-            let board = fen::decode("8/8/6p1/3b4/8/8/6K1/1Q6");
+            let board_info = BoardInfo {
+                board: fen::decode("8/8/6p1/3b4/8/8/6K1/1Q6"),
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0i8; 2],
+                pieces: info::Piece::instantiate_all(),
+            };
 
             let result = valid_move(
                 [1, 0],
                 [6, 5],
-                board,
-                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                [0, 0],
-                pieces,
+                board_info,
             );
 
             // The result is the original board because the king is in check
             // Moving the queen to g6 doesn't prevent check so it not a valid move
-            assert_eq!(result, board);
+            assert_eq!(result, board_info);
         }
 
         #[test]
         fn valid_move_test2() { // Test a valid move
-            let pieces = info::Piece::instantiate_all();
-
-            let board = fen::decode("8/8/6p1/8/8/8/6K1/1Q6");
-            let expected = fen::decode("8/8/6Q1/8/8/8/6K1/8");
+            let board_info = BoardInfo {
+                board: fen::decode("8/8/6p1/8/8/8/6K1/1Q6"),
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0i8; 2],
+                pieces: info::Piece::instantiate_all(),
+            };
 
             let result = valid_move(
                 [1, 0],
                 [6, 5],
-                board,
-                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                [0, 0],
-                pieces,
+                board_info,
             );
 
-            assert_eq!(result, expected);
+            let expected = fen::decode("8/8/6Q1/8/8/8/6K1/8");
+            assert_eq!(result.board, expected);
         }
 
         #[test]
         fn valid_move_test3() { // Test an invalid move (piece trying to move that puts the king in check)
-            let pieces = info::Piece::instantiate_all();
-
-            let board = fen::decode("3RK3/B6B/2P1PN1Q/P2P4/2p3p1/6q1/p2n3p/1rk2r1b");
+            let board_info = BoardInfo {
+                board: fen::decode("3RK3/B6B/2P1PN1Q/P2P4/2p3p1/6q1/p2n3p/1rk2r1b"),
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0i8; 2],
+                pieces: info::Piece::instantiate_all(),
+            };
 
             for i in 0..1 {
                 let result = valid_move(
                     [3, 1],
                     [1, 2],
-                    board,
-                    [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                    [0, 0],
-                    pieces,
+                    board_info,
                 );
     
-                assert_eq!(result, board);
+                assert_eq!(result, board_info);
             }
         }
 
         #[test]
         fn valid_move_test4() { // Test completely invalid move where a pawn tries to move to the other side of the board
-            let pieces = info::Piece::instantiate_all();
-
-            let board = fen::decode("3RK3/B6B/2P1PN1Q/P2P4/2p3p1/6q1/p2n3p/1rk2r1b");
+            let board_info = BoardInfo {
+                board: fen::decode("3RK3/B6B/2P1PN1Q/P2P4/2p3p1/6q1/p2n3p/1rk2r1b"),
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0i8; 2],
+                pieces: info::Piece::instantiate_all(),
+            };
 
             let result = valid_move(
                 [0, 1],
                 [7, 7],
-                board,
-                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                [0, 0],
-                pieces,
+                board_info,
             );
 
-            assert_eq!(result, board);
+            assert_eq!(result, board_info);
         }
 
         #[test]
         fn valid_move_test5() { // Test king trying to move into check (where an enemy pawn puts the king in check)
-            let pieces = info::Piece::instantiate_all();
-
-            let board = fen::decode("8/8/8/8/8/8/1p6/1K6");
+            let board_info = BoardInfo {
+                board: fen::decode("8/8/8/8/8/8/1p6/1K6"),
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0i8; 2],
+                pieces: info::Piece::instantiate_all(),
+            };
 
             let result = valid_move(
                 [1, 0],
                 [0, 0],
-                board,
-                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                [0, 0],
-                pieces,
+                board_info,
             );
 
-            assert_eq!(result, board);
+            assert_eq!(result, board_info);
         }
 
         #[test]
         fn valid_move_test6() { // Test pawn trying to capture king by moving forwards instead of diagonal
-            let pieces = info::Piece::instantiate_all();
-
-            let board = fen::decode("6K1/6p1/8/8/8/8/8/8");
+            let board_info = BoardInfo {
+                board: fen::decode("6K1/6p1/8/8/8/8/8/8"),
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0i8; 2],
+                pieces: info::Piece::instantiate_all(),
+            };
 
             let result = valid_move(
                 [6, 6],
                 [6, 7],
-                board,
-                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                [0, 0],
-                pieces,
+                board_info,
             );
 
-            assert_eq!(result, board);
+            assert_eq!(result, board_info);
+        }
+
+        #[test]
+        fn valid_move_test7() { // Test turns_board and last_turns_coordinates being updated in valid_move
+            let board_info = BoardInfo {
+                board: fen::decode("8/8/8/4pP2/8/8/8/8"),
+                turns_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 3, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
+                last_turn_coordinates: [4, 4],
+                pieces: info::Piece::instantiate_all(),
+            };
+
+            let result = valid_move(
+                [5, 4],
+                [4, 5],
+                board_info,
+            );
+
+            let expected =  BoardInfo {
+                board: fen::decode("8/8/4P3/4p3/8/8/8/8"),
+                turns_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 4, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
+                last_turn_coordinates: [4, 5],
+                pieces: info::Piece::instantiate_all(),
+            };
+
+            assert_eq!(result, expected);  
         }
         // valid_move tests --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     }
