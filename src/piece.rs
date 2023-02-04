@@ -5,6 +5,7 @@ use crate::board::MAX_SLIDES;
 pub mod info {
     use super::*;
 
+    #[derive(Debug, Copy, Clone, PartialEq)]
     pub struct Moves {
         pub moves_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], // Stores information of where a piece can move, and what squares a piece can put in check
         pub capture_coordinates: Option<[i8; 2]>, // Used when a piece is captured but it's square is not taken by the piece capturing (en passant)
@@ -759,7 +760,6 @@ pub mod moves {
         use info::BoardInfo;
         use super::*;
 
-        /*
         // gen_moves tests ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         #[test]
         fn queen_sliding_test() { // Test generating queen moves, where some directions are blocked by enemy or friendly pieces
@@ -767,6 +767,7 @@ pub mod moves {
                 board: fen::decode("8/2P5/8/P3p3/8/2Q5/8/8"),
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
+                capture_coordinates: None,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -776,7 +777,10 @@ pub mod moves {
                 board_info,
             );
 
-            let expected = [[1, 0, 1, 0, 0, 0, 0, 0], [0, 1, 1, 1, 0, 0, 0, 0], [1, 1, 0, 1, 1, 1, 0, 0], [0, 1, 1, 1, 0, 0, 0, 0], [1, 0, 1, 0, 1, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0]];
+            let expected = info::Moves {
+                moves_board: [[1, 0, 1, 0, 0, 0, 0, 0], [0, 1, 1, 1, 0, 0, 0, 0], [1, 1, 0, 1, 1, 1, 0, 0], [0, 1, 1, 1, 0, 0, 0, 0], [1, 0, 1, 0, 1, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0]],
+                capture_coordinates: None
+            };
             assert_eq!(moves_board, expected);
         }
 
@@ -786,6 +790,7 @@ pub mod moves {
                 board: fen::decode("8/8/8/5pP1/8/8/8/8"),
                 turns_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0],  [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
                 last_turn_coordinates: [5, 4],
+                capture_coordinates: None,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -795,7 +800,10 @@ pub mod moves {
                 board_info,
             );
 
-            let expected = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, -1, 1, 0, 0], [0, 0, 0, 0, 0, 2, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
+            let expected = info::Moves {
+                moves_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 1, 0, 0], [0, 0, 0, 0, 0, 2, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
+                capture_coordinates: Some([5, 4]),
+            };
             assert_eq!(moves_board, expected);
         }
 
@@ -805,6 +813,7 @@ pub mod moves {
                 board: fen::decode("8/8/8/8/8/8/1P6/8"),
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
+                capture_coordinates: None,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -814,7 +823,10 @@ pub mod moves {
                 board_info,
             );
 
-            let expected = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 2, 2, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
+            let expected = info::Moves {
+                moves_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 2, 2, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
+                capture_coordinates: None
+            };
             assert_eq!(moves_board, expected);
         }
 
@@ -824,6 +836,7 @@ pub mod moves {
                 board: fen::decode("8/8/8/8/8/1pp5/2P5/8"),
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
+                capture_coordinates: None,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -833,7 +846,10 @@ pub mod moves {
                 board_info,
             );
 
-            let expected = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
+            let expected = info::Moves {
+                moves_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
+                capture_coordinates: None
+            };
             assert_eq!(moves_board, expected);
         }
         // gen_moves tests ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -844,6 +860,7 @@ pub mod moves {
                 board: fen::decode("8/3b3r/5p2/b1p1p3/3p4/8/2Q2P2/R7"),
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
+                capture_coordinates: None,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -862,6 +879,7 @@ pub mod moves {
                 board: fen::decode("8/p1q3r1/8/4P3/8/2N5/8/6P1"),
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
+                capture_coordinates: None,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -882,6 +900,7 @@ pub mod moves {
                 board: board,
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
+                capture_coordinates: None,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -904,6 +923,7 @@ pub mod moves {
                 board: board,
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
+                capture_coordinates: None,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -942,6 +962,7 @@ pub mod moves {
                 board: fen::decode("8/8/6p1/3b4/8/8/6K1/1Q6"),
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
+                capture_coordinates: None,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -962,6 +983,7 @@ pub mod moves {
                 board: fen::decode("8/8/6p1/8/8/8/6K1/1Q6"),
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
+                capture_coordinates: None,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -981,6 +1003,7 @@ pub mod moves {
                 board: fen::decode("3RK3/B6B/2P1PN1Q/P2P4/2p3p1/6q1/p2n3p/1rk2r1b"),
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
+                capture_coordinates: None,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -1001,6 +1024,7 @@ pub mod moves {
                 board: fen::decode("3RK3/B6B/2P1PN1Q/P2P4/2p3p1/6q1/p2n3p/1rk2r1b"),
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
+                capture_coordinates: None,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -1019,6 +1043,7 @@ pub mod moves {
                 board: fen::decode("8/8/8/8/8/8/1p6/1K6"),
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
+                capture_coordinates: None,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -1037,6 +1062,7 @@ pub mod moves {
                 board: fen::decode("6K1/6p1/8/8/8/8/8/8"),
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
+                capture_coordinates: None,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -1048,7 +1074,7 @@ pub mod moves {
 
             assert_eq!(result, board_info);
         }
-        */
+
         #[test]
         fn valid_move_test7() { // Test turns_board and last_turns_coordinates being updated in valid_move (with en passant)
             let board_info = BoardInfo {
@@ -1075,34 +1101,6 @@ pub mod moves {
 
             assert_eq!(result, expected);
         }
-        /*
-        #[test]
-        fn valid_move_test7() { // Test en passant capturing an enemy piece
-            let board_info = BoardInfo {
-                board: fen::decode("8/8/8/3pP3/8/8/8/8"),
-                turns_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
-                last_turn_coordinates: [3, 4],
-                capture_coordinates: None,
-                pieces: info::Piece::instantiate_all(),
-            };
-
-            let result = valid_move(
-                [5, 4],
-                [4, 5],
-                board_info,
-            );
-
-            let expected =  BoardInfo {
-                board: fen::decode("8/8/4P3/4p3/8/8/8/8"),
-                turns_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 2, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
-                last_turn_coordinates: [4, 5],
-                capture_coordinates: Some([3, 4]),
-                pieces: info::Piece::instantiate_all(),
-            };
-
-            assert_eq!(result, expected);  
-        }\
-        */
 
         // valid_move tests --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     }
