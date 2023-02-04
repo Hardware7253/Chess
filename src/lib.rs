@@ -63,7 +63,7 @@ pub fn unwrap_def<T>(option: Option<T>, def: T) -> T {
 }
 
 // Flip board so that the coordinates match the perspective of the other player
-pub fn invert_board(board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
+pub fn flip_board(board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
     let mut board_inv = [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]];
 
     for x in 0..BOARD_SIZE[0] {
@@ -182,10 +182,10 @@ mod tests {
     }
 
     #[test]
-    fn invert_board_test() {
+    fn flip_board_test() {
         let board = fen::decode("rrrr4/rrrrpp2/1p1ppnq1/1ppp2q1/3P4/2PP4/BQ1PPP2/QQ3KRR");
         let expected = fen::decode("RRK3QQ/2PPP1QB/4PP2/4P3/1q2ppp1/1qnpp1p1/2pprrrr/4rrrr");
-        assert_eq!(invert_board(board), expected);
+        assert_eq!(flip_board(board), expected);
     }
 
     #[test]
