@@ -145,6 +145,19 @@ pub fn piece_white(id: i8) -> bool {
     true
 }
 
+// Finds coordiantes of an id in a board
+// Only useful for finding a king because the first matching coordinate is returned
+pub fn find_id_in_board(id: i8, board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> Option<[i8; 2]> {
+    for x in 0..BOARD_SIZE[0] {
+        for y in 0..BOARD_SIZE[0] {
+            if board[x][y] == id {
+                return Some(coordinates_from_usize([x, y]));
+            }
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use crate::piece::info;
@@ -255,5 +268,15 @@ mod tests {
     #[test]
     fn piece_white_test() {
         assert_eq!(piece_white(-1), false);
+    }
+
+    #[test]
+    fn find_id_in_board_test() {
+        let result = find_id_in_board(
+            6,
+            [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 6, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
+        );
+
+        assert_eq!(result, Some([2, 3]));
     }
 }
