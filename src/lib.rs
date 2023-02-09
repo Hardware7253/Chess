@@ -158,6 +158,37 @@ pub fn find_id_in_board(id: i8, board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> 
     None
 }
 
+// Combine 2 boards into 1 board
+// values in board_a are replaced over values in board_b if there is a conflict
+pub fn combine_boards(board_a: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], board_b: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], default_value: i8) -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
+    let mut new_board = [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]];
+
+    for x in 0..BOARD_SIZE[0] {
+        for y in 0..BOARD_SIZE[0] {
+            if board_a[x][y] != default_value && board_b[x][y] != default_value {
+                new_board[x][y] = board_a[x][y]; // board_a takes priority over board_b if there is a conflict
+            } else if board_a[x][y] != default_value {
+                new_board[x][y] = board_a[x][y];
+            } else if board_b[x][y] != default_value {
+                new_board[x][y] = board_b[x][y];
+            }
+        }
+    }
+    new_board
+}
+
+// Replace all instances of (replace) in a board with (with)
+pub fn replace_in_board(replace: i8, with: i8, mut board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
+    for x in 0..BOARD_SIZE[0] {
+        for y in 0..BOARD_SIZE[0] {
+            if board[x][y] == replace {
+                board[x][y] = with
+            }
+        }
+    }
+    board
+}
+
 #[cfg(test)]
 mod tests {
     use crate::piece::info;
@@ -278,5 +309,25 @@ mod tests {
         );
 
         assert_eq!(result, Some([2, 3]));
+    }
+
+    #[test]
+    fn combine_boards_test() {
+        let board1 = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 1, 0], [0, 1, 0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 1, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
+        let board2 = [[0, 0, 0, 0, 0, -1, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, -1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, -1], [0, -1, 0, 0, 0, 0, -1, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, -1, 0, 0]];
+        
+        let result = combine_boards(board1, board2, 0);
+        let expected = [[0, 0, 0, 0, 0, -1, 0, 0], [0, 0, 0, 0, 0, 0, 1, 0], [0, 1, 0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, -1], [0, -1, 0, 0, 0, 0, -1, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 1, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, -1, 0, 0]];
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn replace_in_board_test() {
+        let board = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 1, 0], [0, 1, 0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 1, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
+
+        let result = replace_in_board(1, -1, board);
+        let expected = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, -1, 0], [0, -1, 0, -1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, -1, 0, 0, 0], [0, -1, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
+        assert_eq!(result, expected);
     }
 }

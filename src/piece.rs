@@ -549,14 +549,16 @@ pub mod moves {
     // Generates all possible moves for a type of piece (white or black)
     fn gen_all_moves(
     gen_all_white: bool, // When true generates all white moves, generates black mvoes when false
+    ignore_id: Option<i8>,
     board_info: info::BoardInfo)
     -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {        
         let mut moves_board = [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]];
+        let ignore_id = unwrap_def(ignore_id, 0);
         for x in 0..BOARD_SIZE[0] {
             for y in 0..BOARD_SIZE[1] {
                 let id = board_info.board[x][y]; // Get id of piece at board coordinates (x, y)
 
-                if piece_white(id) == gen_all_white && id != 0 { // Check piece type matches piece type defined in gen_all_white
+                if piece_white(id) == gen_all_white && id != 0 && id != ignore_id { // Check piece type matches piece type defined in gen_all_white
                     let piece_coordinates = [x.try_into().unwrap(), y.try_into().unwrap()];
 
                     moves_board = gen_moves(piece_coordinates, moves_board, board_info).moves_board;
@@ -582,10 +584,32 @@ pub mod moves {
             pieces: board_info.pieces,
         };
 
-        let enemy_moves = gen_all_moves(!caller_white, board_info);
+        let enemy_moves = gen_all_moves(!caller_white, None, board_info);
         flip_board(enemy_moves) // Invert enemy moves again to get back to perspective of the caller team
     }
+    
+    // Gen enemy moves, except the enemy paths are blocked by friendly pieces paths
+    fn gen_enemy_moves_blocked(caller_white: bool, ignore_id: Option<i8>, board_info: info::BoardInfo) -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
 
+        // Add friendly moves blocking paths to current board
+        let mut friendly_moves = gen_all_moves(caller_white, ignore_id, board_info);
+        if !caller_white {
+            friendly_moves = crate::replace_in_board(1, -1, friendly_moves);
+        }
+        let board_with_moves = crate::combine_boards(board_info.board, friendly_moves, 0);
+
+        // Gen enemy moves with modified board
+        let board_info = info::BoardInfo {
+            board: board_with_moves,
+            turns_board: board_info.turns_board,
+            last_turn_coordinates: board_info.last_turn_coordinates,
+            capture_coordinates: board_info.capture_coordinates,
+            pieces: board_info.pieces,
+        };
+
+        gen_enemy_moves(caller_white, board_info)
+    }
+    
     // Given original piece coordinates and move coordinates this function checks if the move coordinates are valid for a castle
     // If a castle is possible a new board is returned where the king and rook pieces have castled, otherwise the original board is returned
     fn castle(
@@ -659,7 +683,7 @@ pub mod moves {
 
     // Get check status of a king from a given team (white)
     fn get_check_state(white: bool, get_mate: bool, board_info: info::BoardInfo) -> info::CheckType {
-        // Get king_id
+        // Get king_id for team specified by (white)
         let mut king_id = info::IDS[5];
         if !white {
             king_id = king_id * -1;
@@ -672,8 +696,16 @@ pub mod moves {
 
         let enemy_moves_board = gen_enemy_moves(white, board_info);
 
+        // Check for king check
+        let mut check = false;
+        if get_board(king_coordinates, enemy_moves_board) == 1 {
+            check = true;
+        }
+
         let mut mate = false;
         if get_mate {
+            let enemy_moves_board = gen_enemy_moves_blocked(white, Some(king_id), board_info);
+
             let king_mdirs = board_info.pieces[usize::try_from(king_id.abs() - 1).unwrap()].mdirs;
             let king_mdir_no = board_info.pieces[usize::try_from(king_id.abs() - 1).unwrap()].mdir_no;
 
@@ -697,12 +729,6 @@ pub mod moves {
             }
         }
         
-        // Check for king check
-        let mut check = false;
-        if get_board(king_coordinates, enemy_moves_board) == 1 {
-            check = true;
-        }
-
         info::CheckType {
             check: check,
             mate: mate,
@@ -950,6 +976,7 @@ pub mod moves {
 
             let moves_board = gen_all_moves(
                 true,
+                None,
                 board_info,
             );
 
@@ -973,6 +1000,26 @@ pub mod moves {
             );
 
             let expected = [[0, 0, 0, 0, 2, 2, 0, 0], [0, 0, 0, 0, 0, 1, 1, 1], [0, 0, 1, 1, 1, 1, 0, 1], [0, 0, 0, 0, 0, 1, 1, 1], [0, 0, 0, 0, 1, 0, 1, 0], [0, 0, 0, 0, 0, 0, 1, 0], [1, 1, 1, 1, 1, 1, 0, 1], [0, 0, 0, 0, 0, 0, 1, 0]];
+            assert_eq!(moves_board, expected);
+        }
+
+        #[test]
+        fn gen_enemy_moves_blocked_test() {
+            let board_info = BoardInfo {
+                board: fen::decode("8/4Q3/8/8/8/8/8/r7"),
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0i8; 2],
+                capture_coordinates: None,
+                pieces: info::Piece::instantiate_all(),
+            };
+
+            let moves_board = gen_enemy_moves_blocked(
+                true,
+                None,
+                board_info,
+            );
+
+            let expected = [[0, 1, 1, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
             assert_eq!(moves_board, expected);
         }
 
@@ -1058,6 +1105,26 @@ pub mod moves {
             let expected = info::CheckType {
                 check: false,
                 mate: true,
+            };
+
+            assert_eq!(result, expected);
+        }
+
+        #[test]
+        fn get_check_state_test3() { // Test check mate being blocked by friendly rook
+            let board_info = BoardInfo {
+                board: fen::decode("4R3/8/8/8/8/8/5PPP/r5K1"),
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0i8; 2],
+                capture_coordinates: None,
+                pieces: info::Piece::instantiate_all(),
+            };
+
+            let result = get_check_state(true, true, board_info);
+
+            let expected = info::CheckType {
+                check: true,
+                mate: false,
             };
 
             assert_eq!(result, expected);
