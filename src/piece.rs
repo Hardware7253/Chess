@@ -1,56 +1,7 @@
-use crate::fen;
 use crate::board::BOARD_SIZE;
-use crate::board::MAX_SLIDES;
 
+// Module containing piece information such as IDS and moves
 pub mod info {
-    use super::*;
-
-    #[derive(Debug, Copy, Clone, PartialEq)]
-    pub struct Moves {
-        pub moves_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], // Stores information of where a piece can move, and what squares a piece can put in check
-        pub capture_coordinates: Option<[i8; 2]>, // Used when a piece is captured but it's square is not taken by the piece capturing (en passant)
-    }
-
-    #[derive(Debug, Copy, Clone, PartialEq)]
-    pub struct CheckType {
-        // For a check mate (check) and (mate) have to be true
-        // For a stale mate just (mate) should be true
-        // For a check just (check) should be true
-        pub check: bool, // Where an enemy can capture the king
-        pub mate: bool, // Where the king cannot move to any of it's surrounding squares
-
-    }
-
-    #[derive(Debug, Copy, Clone, PartialEq)]
-    pub struct PointsInfo {
-        pub captured_pieces: [i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}], // Array of piece ids that have been captured
-        pub captured_pieces_no: i8, // Number of pieces that have been captured
-        pub points_total: i8, // Total points
-        pub points_delta: i8, // Last points change
-    }
-
-    #[derive(Debug, Copy, Clone, PartialEq)]
-    pub struct BoardInfo {
-        pub board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], // Game board, stores piece ids in the positions they are on the board.
-        pub turns_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], // Turns board, values correspond to a piece at the same coordinates on the game board. Values represent how many times that piece has moved from its starting position.
-        pub last_turn_coordinates: [i8; 2], // Last turn coordinates, coordinates of the piece that moved last turn.
-        pub capture_coordinates: Option<[i8; 2]>, // Coordinates of piece that was captured (if any)
-        pub pieces: [info::Piece; 6], // Array stores piece structs, structs contain infromation such as piece ids, movement directions, and movement types.
-    }
-
-    impl BoardInfo {
-        // Use to get boards to start a regular game
-        pub fn new() -> Self {
-            BoardInfo {
-                board: fen::decode("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"),
-                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                last_turn_coordinates: [0i8; 2],
-                capture_coordinates: None,
-                pieces: info::Piece::instantiate_all(),
-            }
-        }
-    }
-
     // Piece ids, order must not change, ids can
     // Order                  P  R  N  B  Q  K
     pub const IDS: [i8; 6] = [1, 2, 3, 4, 5, 6];
@@ -342,7 +293,7 @@ pub mod info {
     }
 }
 
-
+// Module containg functions related toa the movement of a a piece
 pub mod moves {
     use super::*;
 
@@ -354,14 +305,62 @@ pub mod moves {
     use crate::friendly_piece;
     use crate::piece_white;
     use crate::move_board_value;
-    use crate::flip_board;
-    use crate::flip_coordinates;
+
+    #[derive(Debug, Copy, Clone, PartialEq)]
+    struct Moves {
+        pub moves_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], // Stores information of where a piece can move, and what squares a piece can put in check
+        pub capture_coordinates: Option<[i8; 2]>, // Used when a piece is captured but it's square is not taken by the piece capturing (en passant)
+    }
+
+    #[derive(Debug, Copy, Clone, PartialEq)]
+    pub struct CheckType {
+        // For a check mate (check) and (mate) have to be true
+        // For a stale mate just (mate) should be true
+        // For a check just (check) should be true
+        pub check: bool, // Where an enemy can capture the king
+        pub mate: bool, // Where the king cannot move to any of it's surrounding squares
+
+    }
+
+    #[derive(Debug, Copy, Clone, PartialEq)]
+    pub struct PointsInfo {
+        pub captured_pieces: [i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}], // Array of piece ids that have been captured
+        pub captured_pieces_no: i8, // Number of pieces that have been captured
+        pub points_total: i8, // Total points
+        pub points_delta: i8, // Last points change
+    }
+
+    #[derive(Debug, Copy, Clone, PartialEq)]
+    pub struct BoardInfo {
+        pub board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], // Game board, stores piece ids in the positions they are on the board.
+        pub turns_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], // Turns board, values correspond to a piece at the same coordinates on the game board. Values represent how many times that piece has moved from its starting position.
+        pub last_turn_coordinates: [i8; 2], // Last turn coordinates, coordinates of the piece that moved last turn.
+        pub capture_coordinates: Option<[i8; 2]>, // Coordinates of piece that was captured (if any)
+        pub error_code: i8,
+        pub pieces: [info::Piece; 6], // Array stores piece structs, structs contain infromation such as piece ids, movement directions, and movement types.
+    }
+
+    impl BoardInfo {
+        // Use to get boards to start a regular game
+        pub fn new() -> Self {
+            BoardInfo {
+                board: crate::fen::decode("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"),
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0i8; 2],
+                capture_coordinates: None,
+                error_code: 0,
+                pieces: info::Piece::instantiate_all(),
+            }
+        }
+    }
 
     // Generates all possible moves given a single piece, cannot generate moves for an enemy team because the pawns will move backwards
     fn gen_moves(mut piece_coordinates: [i8; 2],
     mut moves_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], // Allows a custom starting moves_board to be set, this allows moves to be added to a pre-existing moves_board
-    board_info: info::BoardInfo)
-    -> info::Moves {
+    board_info: BoardInfo)
+    -> Moves {
+        use crate::board::MAX_SLIDES;
+        
         let board = board_info.board;
         let turns_board = board_info.turns_board;
         let last_turn_coordinates = board_info.last_turn_coordinates;
@@ -370,7 +369,7 @@ pub mod moves {
         // Get piece id
         let id = get_board(piece_coordinates, board);
         if id == 0 {
-            return info::Moves {
+            return Moves {
                 moves_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 capture_coordinates: None,
             } 
@@ -540,7 +539,7 @@ pub mod moves {
         }
 
         // Return moves board and captured coordinates
-        info::Moves {
+        Moves {
             moves_board: moves_board,
             capture_coordinates: captured_coordinates,
         }
@@ -550,7 +549,7 @@ pub mod moves {
     fn gen_all_moves(
     gen_all_white: bool, // When true generates all white moves, generates black mvoes when false
     ignore_id: Option<i8>,
-    board_info: info::BoardInfo)
+    board_info: BoardInfo)
     -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {        
         let mut moves_board = [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]];
         let ignore_id = unwrap_def(ignore_id, 0);
@@ -572,15 +571,18 @@ pub mod moves {
     // Inverts boards to enemy perspective to fix the problem where enemy pawns move backwards
     fn gen_enemy_moves(
     caller_white: bool,
-    board_info: info::BoardInfo)
+    board_info: BoardInfo)
     -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
+        use crate::flip_board;
+        use crate::flip_coordinates;
         
         // Flip board_info to get enemy perspective
-        let board_info = info::BoardInfo {
+        let board_info = BoardInfo {
             board: flip_board(board_info.board),
             turns_board: flip_board(board_info.turns_board),
             last_turn_coordinates: flip_coordinates(board_info.last_turn_coordinates),
             capture_coordinates: None,
+            error_code: 0,
             pieces: board_info.pieces,
         };
 
@@ -589,7 +591,7 @@ pub mod moves {
     }
     
     // Gen enemy moves, except the enemy paths are blocked by friendly pieces paths
-    fn gen_enemy_moves_blocked(caller_white: bool, ignore_id: Option<i8>, board_info: info::BoardInfo) -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
+    fn gen_enemy_moves_blocked(caller_white: bool, ignore_id: Option<i8>, board_info: BoardInfo) -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
 
         // Add friendly moves blocking paths to current board
         let mut friendly_moves = gen_all_moves(caller_white, ignore_id, board_info);
@@ -599,11 +601,12 @@ pub mod moves {
         let board_with_moves = crate::combine_boards(board_info.board, friendly_moves, 0);
 
         // Gen enemy moves with modified board
-        let board_info = info::BoardInfo {
+        let board_info = BoardInfo {
             board: board_with_moves,
             turns_board: board_info.turns_board,
             last_turn_coordinates: board_info.last_turn_coordinates,
             capture_coordinates: board_info.capture_coordinates,
+            error_code: 0,
             pieces: board_info.pieces,
         };
 
@@ -616,7 +619,7 @@ pub mod moves {
     piece_coordinates: [i8; 2],
     move_coordinates: [i8; 2],
     enemy_moves_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-    board_info: info::BoardInfo)
+    board_info: BoardInfo)
     -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
 
         let mut board = board_info.board;
@@ -682,7 +685,7 @@ pub mod moves {
     }
 
     // Get check status of a king from a given team (white)
-    fn get_check_state(white: bool, get_mate: bool, board_info: info::BoardInfo) -> info::CheckType {
+    fn get_check_state(white: bool, get_mate: bool, board_info: BoardInfo) -> CheckType {
         // Get king_id for team specified by (white)
         let mut king_id = info::IDS[5];
         if !white {
@@ -729,7 +732,7 @@ pub mod moves {
             }
         }
         
-        info::CheckType {
+        CheckType {
             check: check,
             mate: mate,
         }
@@ -740,8 +743,9 @@ pub mod moves {
     pub fn gen_move_board(
     piece_coordinates: [i8; 2],
     move_coordinates: [i8; 2],
-    board_info: info::BoardInfo)
-    -> info::BoardInfo {
+    mut board_info: BoardInfo)
+    -> BoardInfo {
+        use crate::board::errors;
 
         let board = board_info.board;
         let turns_board = board_info.turns_board;
@@ -753,6 +757,8 @@ pub mod moves {
 
         let mut move_valid = false;
 
+        let mut error = 0;
+
         // Castle
         let mut castle_board = board;
         if id == pieces[5].id {
@@ -762,7 +768,11 @@ pub mod moves {
         if castle_board != board {
             move_valid = true;
         }
-        let mut post_move_board = castle_board;
+
+        // Board info post move
+        let mut board_info_pm = board_info;
+        board_info_pm.board = castle_board;
+        board_info_pm.capture_coordinates = None;
 
         // Generate possible moves for the piece at piece_coordinate
         let moves = gen_moves(
@@ -773,15 +783,11 @@ pub mod moves {
         let possible_moves = moves.moves_board;
         let capture_coordinates = moves.capture_coordinates;
 
-        // Board info post move
-        let mut board_info_pm = board_info;
-        board_info_pm.capture_coordinates = None;
-
         // If possible_moves at move_coordinates != 0 then the piece can move there
         if get_board(move_coordinates, possible_moves) != 0 && !move_valid {
 
             // Get board where the piece at piece_coordinates is moved to move_coordinates
-            post_move_board = move_board_value(piece_coordinates, move_coordinates, 0, board);
+            let mut post_move_board = move_board_value(piece_coordinates, move_coordinates, 0, board);
 
             // Check if there are coordinates which have to be captured
             let mut force_capture_coordinates = false;
@@ -805,7 +811,11 @@ pub mod moves {
             let king_check_state = get_check_state(piece_white, false, board_info_pm);
             if !king_check_state.check {
                 move_valid = true;
+            } else {
+                error = errors::CHECK_ERROR;
             }
+        } else {
+            error = errors::INVALID_MOVE_ERROR;
         }
 
         if move_valid {
@@ -818,9 +828,12 @@ pub mod moves {
 
             // Set last moved piece
             board_info_pm.last_turn_coordinates = move_coordinates;
-
+            
             return board_info_pm;
         }
+
+        // Return board with error code
+        board_info.error_code = error;
         board_info
     }
 
@@ -828,10 +841,10 @@ pub mod moves {
     // Function looks at old and new BoardInfo to find captured pieces
     // Captured pieces added to captured pieces array and are used to calculate points total and points change
     pub fn update_points_info(
-    board_info_old: info::BoardInfo,
-    board_info_new: info::BoardInfo,
-    mut points_info: info::PointsInfo)
-    -> info::PointsInfo {
+    board_info_old: BoardInfo,
+    board_info_new: BoardInfo,
+    mut points_info: PointsInfo)
+    -> PointsInfo {
         let pieces = board_info_old.pieces;
 
         // Get coordiantes of captured piece
@@ -866,9 +879,8 @@ pub mod moves {
 
     #[cfg(test)]
     mod tests {
-        use crate::fen;
-        use info::BoardInfo;
         use super::*;
+        use crate::fen;
 
         // gen_moves tests ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         #[test]
@@ -878,6 +890,7 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -887,9 +900,9 @@ pub mod moves {
                 board_info,
             );
 
-            let expected = info::Moves {
+            let expected = Moves {
                 moves_board: [[1, 0, 1, 0, 0, 0, 0, 0], [0, 1, 1, 1, 0, 0, 0, 0], [1, 1, 0, 1, 1, 1, 0, 0], [0, 1, 1, 1, 0, 0, 0, 0], [1, 0, 1, 0, 1, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0]],
-                capture_coordinates: None
+                capture_coordinates: None,
             };
             assert_eq!(moves_board, expected);
         }
@@ -901,6 +914,7 @@ pub mod moves {
                 turns_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0],  [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
                 last_turn_coordinates: [5, 4],
                 capture_coordinates: None,
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -910,7 +924,7 @@ pub mod moves {
                 board_info,
             );
 
-            let expected = info::Moves {
+            let expected = Moves {
                 moves_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 1, 0, 0], [0, 0, 0, 0, 0, 2, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
                 capture_coordinates: Some([5, 4]),
             };
@@ -924,6 +938,7 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -933,9 +948,9 @@ pub mod moves {
                 board_info,
             );
 
-            let expected = info::Moves {
+            let expected = Moves {
                 moves_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 2, 2, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
-                capture_coordinates: None
+                capture_coordinates: None,
             };
             assert_eq!(moves_board, expected);
         }
@@ -947,6 +962,7 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -956,9 +972,9 @@ pub mod moves {
                 board_info,
             );
 
-            let expected = info::Moves {
+            let expected = Moves {
                 moves_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
-                capture_coordinates: None
+                capture_coordinates: None,
             };
             assert_eq!(moves_board, expected);
         }
@@ -971,6 +987,7 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -991,6 +1008,7 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -1010,6 +1028,7 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -1032,6 +1051,7 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -1055,6 +1075,7 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -1077,12 +1098,13 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
             let result = get_check_state(true, true, board_info);
 
-            let expected = info::CheckType {
+            let expected = CheckType {
                 check: true,
                 mate: true,
             };
@@ -1097,12 +1119,13 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
             let result = get_check_state(false, true, board_info);
 
-            let expected = info::CheckType {
+            let expected = CheckType {
                 check: false,
                 mate: true,
             };
@@ -1117,12 +1140,13 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
             let result = get_check_state(true, true, board_info);
 
-            let expected = info::CheckType {
+            let expected = CheckType {
                 check: true,
                 mate: false,
             };
@@ -1139,6 +1163,7 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
+                error_code: 1,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -1160,6 +1185,7 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -1180,6 +1206,7 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
+                error_code: 1,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -1201,6 +1228,7 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
+                error_code: 4,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -1220,6 +1248,7 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
+                error_code: 1,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -1239,6 +1268,7 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
+                error_code: 4,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -1252,12 +1282,42 @@ pub mod moves {
         }
 
         #[test]
-        fn gen_move_board_test7() { // Test turns_board and last_turns_coordinates being updated in gen_move_board (with en passant)
+        fn gen_move_board_test7() { // Test king castle
+            let board_info = BoardInfo {
+                board: fen::decode("8/8/8/8/8/8/8/R3K2R"),
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0, 0],
+                capture_coordinates: None,
+                error_code: 0,
+                pieces: info::Piece::instantiate_all(),
+            };
+
+            let result = gen_move_board(
+                [4, 0],
+                [6, 0],
+                board_info,
+            );
+
+            let expected =  BoardInfo {
+                board: fen::decode("8/8/8/8/8/8/8/R4RK1"),
+                turns_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
+                last_turn_coordinates: [6, 0],
+                capture_coordinates: None,
+                error_code: 0,
+                pieces: info::Piece::instantiate_all(),
+            };
+
+            assert_eq!(result, expected);
+        }
+
+        #[test]
+        fn gen_move_board_test8() { // Test turns_board and last_turns_coordinates being updated in gen_move_board (with en passant)
             let board_info = BoardInfo {
                 board: fen::decode("8/8/8/4pP2/8/8/8/8"),
                 turns_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 3, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
                 last_turn_coordinates: [4, 4],
                 capture_coordinates: None,
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -1272,6 +1332,7 @@ pub mod moves {
                 turns_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 4, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
                 last_turn_coordinates: [4, 5],
                 capture_coordinates: Some([4, 4]),
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -1287,6 +1348,7 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0, 0],
                 capture_coordinates: None,
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -1295,10 +1357,11 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [3, 4],
                 capture_coordinates: None,
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
-            let mut points_info = info::PointsInfo {
+            let mut points_info = PointsInfo {
                 captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
                 captured_pieces_no: 1,
                 points_total: 4,
@@ -1308,7 +1371,7 @@ pub mod moves {
 
             let result = update_points_info(board_info_old, board_info_new, points_info);
             
-            let mut expected = info::PointsInfo {
+            let mut expected = PointsInfo {
                 captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
                 captured_pieces_no: 2,
                 points_total: 7,
@@ -1329,6 +1392,7 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0, 0],
                 capture_coordinates: None,
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
@@ -1337,10 +1401,11 @@ pub mod moves {
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [4, 5],
                 capture_coordinates: Some([4, 4]),
+                error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };
 
-            let mut points_info = info::PointsInfo {
+            let mut points_info = PointsInfo {
                 captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
                 captured_pieces_no: 1,
                 points_total: 4,
@@ -1350,7 +1415,7 @@ pub mod moves {
 
             let result = update_points_info(board_info_old, board_info_new, points_info);
             
-            let mut expected = info::PointsInfo {
+            let mut expected = PointsInfo {
                 captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
                 captured_pieces_no: 2,
                 points_total: 5,
