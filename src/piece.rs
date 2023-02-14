@@ -293,7 +293,7 @@ pub mod info {
     }
 }
 
-// Module containg functions related toa the movement of a a piece
+// Module containg functions related to moving piece(s)
 pub mod moves {
     use super::*;
 
@@ -323,14 +323,6 @@ pub mod moves {
     }
 
     #[derive(Debug, Copy, Clone, PartialEq)]
-    pub struct PointsInfo {
-        pub captured_pieces: [i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}], // Array of piece ids that have been captured
-        pub captured_pieces_no: i8, // Number of pieces that have been captured
-        pub points_total: i8, // Total points
-        pub points_delta: i8, // Last points change
-    }
-
-    #[derive(Debug, Copy, Clone, PartialEq)]
     pub struct BoardInfo {
         pub board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], // Game board, stores piece ids in the positions they are on the board.
         pub turns_board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], // Turns board, values correspond to a piece at the same coordinates on the game board. Values represent how many times that piece has moved from its starting position.
@@ -338,20 +330,6 @@ pub mod moves {
         pub capture_coordinates: Option<[i8; 2]>, // Coordinates of piece that was captured (if any)
         pub error_code: i8,
         pub pieces: [info::Piece; 6], // Array stores piece structs, structs contain infromation such as piece ids, movement directions, and movement types.
-    }
-
-    impl BoardInfo {
-        // Use to get boards to start a regular game
-        pub fn new() -> Self {
-            BoardInfo {
-                board: crate::fen::decode("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"),
-                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                last_turn_coordinates: [0i8; 2],
-                capture_coordinates: None,
-                error_code: 0,
-                pieces: info::Piece::instantiate_all(),
-            }
-        }
     }
 
     // Generates all possible moves given a single piece, cannot generate moves for an enemy team because the pawns will move backwards
@@ -568,7 +546,7 @@ pub mod moves {
     }
 
     // Generates all moves of the enemy team
-    // Inverts boards to enemy perspective to fix the problem where enemy pawns move backwards
+    // Flip boards to enemy perspective to fix the problem where enemy pawns move backwards
     fn gen_enemy_moves(
     caller_white: bool,
     board_info: BoardInfo)
@@ -587,7 +565,7 @@ pub mod moves {
         };
 
         let enemy_moves = gen_all_moves(!caller_white, None, board_info);
-        flip_board(enemy_moves) // Invert enemy moves again to get back to perspective of the caller team
+        flip_board(enemy_moves) // Flip enemy moves again to get back to perspective of the caller team
     }
     
     // Gen enemy moves, except the enemy paths are blocked by friendly pieces paths
@@ -685,7 +663,7 @@ pub mod moves {
     }
 
     // Get check status of a king from a given team (white)
-    fn get_check_state(white: bool, get_mate: bool, board_info: BoardInfo) -> CheckType {
+    pub fn get_check_state(white: bool, get_mate: bool, board_info: BoardInfo) -> CheckType {
         // Get king_id for team specified by (white)
         let mut king_id = info::IDS[5];
         if !white {
@@ -771,6 +749,7 @@ pub mod moves {
 
         // Board info post move
         let mut board_info_pm = board_info;
+        board_info_pm.error_code = 0;
         board_info_pm.board = castle_board;
         board_info_pm.capture_coordinates = None;
 
@@ -835,45 +814,6 @@ pub mod moves {
         // Return board with error code
         board_info.error_code = error;
         board_info
-    }
-
-    // Points info stored information on captured pieces, and points of the team that it belongs to
-    // Function looks at old and new BoardInfo to find captured pieces
-    // Captured pieces added to captured pieces array and are used to calculate points total and points change
-    pub fn update_points_info(
-    board_info_old: BoardInfo,
-    board_info_new: BoardInfo,
-    mut points_info: PointsInfo)
-    -> PointsInfo {
-        let pieces = board_info_old.pieces;
-
-        // Get coordiantes of captured piece
-        let capture_coordinates = board_info_new.capture_coordinates;
-        let mut force_capture_coordinates = false;
-        match capture_coordinates {
-            Some(_) => force_capture_coordinates = true,
-            None => force_capture_coordinates = false,
-        };
-
-        let mut captured_coordinates = board_info_new.last_turn_coordinates;
-        if force_capture_coordinates {
-            captured_coordinates = unwrap_def(capture_coordinates, [0i8; 2]); 
-        }
-
-        let captured_piece_id = get_board(captured_coordinates, board_info_old.board); // Get id of captured piece
-        if captured_piece_id == 0 { // If captured piece id is 0 no pieces were captured
-            return points_info;
-        }
-
-        let points_change = pieces[usize::try_from(captured_piece_id.abs() - 1).unwrap()].value; // Get value of captured piece
-
-        // Update points_info struct
-        points_info.captured_pieces[usize::try_from(points_info.captured_pieces_no).unwrap()] = captured_piece_id;
-        points_info.captured_pieces_no = points_info.captured_pieces_no + 1;
-        points_info.points_total = points_info.points_total + points_change;
-        points_info.points_delta = points_change;
-
-        points_info
     }
     
 
@@ -1339,95 +1279,5 @@ pub mod moves {
             assert_eq!(result, expected);
         }
         // gen_move_board tests --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-        // update_points_info test -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-        #[test]
-        fn update_points_info_test1() { // Test update_points_info when a regular capture takes place
-            let board_info_old = BoardInfo {
-                board: fen::decode("8/8/8/3b4/8/4N3/8/8"),
-                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                last_turn_coordinates: [0, 0],
-                capture_coordinates: None,
-                error_code: 0,
-                pieces: info::Piece::instantiate_all(),
-            };
-
-            let board_info_new = BoardInfo {
-                board: fen::decode("8/8/8/3N4/8/8/8/8"),
-                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                last_turn_coordinates: [3, 4],
-                capture_coordinates: None,
-                error_code: 0,
-                pieces: info::Piece::instantiate_all(),
-            };
-
-            let mut points_info = PointsInfo {
-                captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
-                captured_pieces_no: 1,
-                points_total: 4,
-                points_delta: 0,
-            };
-            points_info.captured_pieces[0] = -1;
-
-            let result = update_points_info(board_info_old, board_info_new, points_info);
-            
-            let mut expected = PointsInfo {
-                captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
-                captured_pieces_no: 2,
-                points_total: 7,
-                points_delta: 3,
-            };
-            expected.captured_pieces[0] = -1;
-            expected.captured_pieces[1] = -4;
-
-            assert_eq!(result, expected);
-            
-
-        }
-
-        #[test]
-        fn update_points_info_test2() { // Test update_points_info when a conditional capture takes place
-            let board_info_old = BoardInfo {
-                board: fen::decode("8/8/8/4pP2/8/8/8/8"),
-                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                last_turn_coordinates: [0, 0],
-                capture_coordinates: None,
-                error_code: 0,
-                pieces: info::Piece::instantiate_all(),
-            };
-
-            let board_info_new = BoardInfo {
-                board: fen::decode("8/8/4P3/8/8/8/8/8"),
-                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                last_turn_coordinates: [4, 5],
-                capture_coordinates: Some([4, 4]),
-                error_code: 0,
-                pieces: info::Piece::instantiate_all(),
-            };
-
-            let mut points_info = PointsInfo {
-                captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
-                captured_pieces_no: 1,
-                points_total: 4,
-                points_delta: 0,
-            };
-            points_info.captured_pieces[0] = -1;
-
-            let result = update_points_info(board_info_old, board_info_new, points_info);
-            
-            let mut expected = PointsInfo {
-                captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
-                captured_pieces_no: 2,
-                points_total: 5,
-                points_delta: 1,
-            };
-            expected.captured_pieces[0] = -1;
-            expected.captured_pieces[1] = -1;
-
-            assert_eq!(result, expected);
-            
-
-        }
-        // update_points_info test -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     }
 }
