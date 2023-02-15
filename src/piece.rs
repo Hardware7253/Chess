@@ -359,22 +359,24 @@ pub mod moves {
         // mdirs information (movement directions)
         let mdirs = pieces[usize::try_from(pieces_index).unwrap()].mdirs;
         let mut mdir_no = pieces[usize::try_from(pieces_index).unwrap()].mdir_no;
-        let mut slides = pieces[usize::try_from(pieces_index).unwrap()].sliding;        
+        let mut slides = pieces[usize::try_from(pieces_index).unwrap()].sliding;
         
-        if get_board(piece_coordinates, turns_board) != 0 {
+        // Unwrap slide_no Option<T>
+        let slide_no = pieces[usize::try_from(pieces_index).unwrap()].slide_no;
+        let mut slide_no = unwrap_def(slide_no, MAX_SLIDES);
+        
+        if get_board(piece_coordinates, turns_board) != 0 && slide_no != MAX_SLIDES {
 
             // Piece must have 0 turns to make use of a custom slide number
             // If it doesn't slding is disabled
             slides = false;
         }
 
-        // Unwrap slide_no Option<T>
-        let slide_no = pieces[usize::try_from(pieces_index).unwrap()].slide_no;
-        let mut slide_no = unwrap_def(slide_no, MAX_SLIDES);
-
         if !slides {
             slide_no = 1;
         }
+
+        println!("{}", slide_no);
     
         
         // Special captures and conditions
@@ -753,6 +755,8 @@ pub mod moves {
         board_info_pm.board = castle_board;
         board_info_pm.capture_coordinates = None;
 
+        println!("{:?}", piece_coordinates);
+
         // Generate possible moves for the piece at piece_coordinate
         let moves = gen_moves(
             piece_coordinates,
@@ -761,6 +765,8 @@ pub mod moves {
         );
         let possible_moves = moves.moves_board;
         let capture_coordinates = moves.capture_coordinates;
+        
+        println!("{}", get_board(move_coordinates, possible_moves));
 
         // If possible_moves at move_coordinates != 0 then the piece can move there
         if get_board(move_coordinates, possible_moves) != 0 && !move_valid {
@@ -794,6 +800,7 @@ pub mod moves {
                 error = errors::CHECK_ERROR;
             }
         } else {
+            println!("True");
             error = errors::INVALID_MOVE_ERROR;
         }
 

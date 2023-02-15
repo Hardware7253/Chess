@@ -224,8 +224,6 @@ pub mod turn {
             expected.captured_pieces[1] = -4;
 
             assert_eq!(result, expected);
-            
-
         }
 
         #[test]
@@ -268,9 +266,74 @@ pub mod turn {
             expected.captured_pieces[1] = -1;
 
             assert_eq!(result, expected);
-            
-
         }
         // update_points_info test -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+        #[test]
+        fn new_turn_test() {
+            let game_state = GameState {
+                white_points_info: PointsInfo {
+                    captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
+                    captured_pieces_no: 0,
+                    points_total: 11,
+                    points_delta: 0,
+                },
+
+                black_points_info: PointsInfo {
+                    captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
+                    captured_pieces_no: 0,
+                    points_total: 15,
+                    points_delta: 0,
+                },
+
+                board_info: BoardInfo {
+                    board: fen::decode("5k2/2p5/1pq5/p4P2/6np/8/2R2B2/1K6"),
+                    turns_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
+                    last_turn_coordinates: [0, 0],
+                    capture_coordinates: None,
+                    error_code: 0,
+                    pieces: crate::piece::info::Piece::instantiate_all(),
+                },
+
+                whites_turn: true,
+            };
+
+            let result = new_turn([2, 1], [2, 5], game_state);
+
+            let mut expected = GameState {
+                white_points_info: PointsInfo {
+                    captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
+                    captured_pieces_no: 1,
+                    points_total: 20,
+                    points_delta: 9,
+                },
+
+                black_points_info: PointsInfo {
+                    captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
+                    captured_pieces_no: 0,
+                    points_total: 15,
+                    points_delta: 0,
+                },
+
+                board_info: BoardInfo {
+                    board: crate::flip_board(fen::decode("5k2/2p5/1pR5/p4P2/6np/8/5B2/1K6")),
+                    turns_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
+                    last_turn_coordinates: [5, 2],
+                    capture_coordinates: None,
+                    error_code: 0,
+                    pieces: crate::piece::info::Piece::instantiate_all(),
+                },
+
+                whites_turn: false,
+            };
+            expected.white_points_info.captured_pieces[0] = -5;
+
+            let result = match result {
+                Ok(result) => result,
+                Err(error) => {println!("{}", error.message); game_state},
+            };
+
+            assert_eq!(result, expected);
+        }
     }
 }
