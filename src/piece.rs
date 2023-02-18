@@ -202,7 +202,7 @@ pub mod info {
                 id_fen: 'K',
                 id: IDS[5],
 
-                value: 127,
+                value: 0,
 
                 sliding: false,
                 slide_no: None,
@@ -375,10 +375,7 @@ pub mod moves {
         if !slides {
             slide_no = 1;
         }
-
-        println!("{}", slide_no);
-    
-        
+            
         // Special captures and conditions
         let mdirs_cap = pieces[usize::try_from(pieces_index).unwrap()].mdirs_cap;
         let condition_adj = pieces[usize::try_from(pieces_index).unwrap()].condition_adj;
@@ -395,6 +392,7 @@ pub mod moves {
 
             None => special_capture = false,
         };
+        let mdirs_cap = unwrap_def(mdirs_cap, [[0i8; 2]; 2]);
 
         // Check for conditional capture
         let mut conditional_capture = false;
@@ -402,12 +400,6 @@ pub mod moves {
             Some(_) => conditional_capture = true,
             None => conditional_capture = false,
         };
-
-        // Unwrap Option<T> struct fields
-        let mdirs_cap = unwrap_def(mdirs_cap, [[0i8; 2]; 2]);
-        let condition_adj = unwrap_def(condition_adj, [[0i8; 2]; 2]);
-        let condition_self_y = unwrap_def(condition_self_y, 0);
-        let condition_subj_moves = unwrap_def(condition_subj_moves, 0);
 
         let mut captured_coordinates: Option<[i8; 2]> = None;
 
@@ -434,6 +426,10 @@ pub mod moves {
 
         // Generate conditional capture moves
         if conditional_capture {
+            let condition_adj = unwrap_def(condition_adj, [[0i8; 2]; 2]);
+            let condition_self_y = unwrap_def(condition_self_y, 0);
+            let condition_subj_moves = unwrap_def(condition_subj_moves, 0);
+
             for i in 0..2 {
 
                 // Get capture coordinates (coordinates that the piece will move to if all conditions are met)
@@ -755,8 +751,6 @@ pub mod moves {
         board_info_pm.board = castle_board;
         board_info_pm.capture_coordinates = None;
 
-        println!("{:?}", piece_coordinates);
-
         // Generate possible moves for the piece at piece_coordinate
         let moves = gen_moves(
             piece_coordinates,
@@ -765,8 +759,6 @@ pub mod moves {
         );
         let possible_moves = moves.moves_board;
         let capture_coordinates = moves.capture_coordinates;
-        
-        println!("{}", get_board(move_coordinates, possible_moves));
 
         // If possible_moves at move_coordinates != 0 then the piece can move there
         if get_board(move_coordinates, possible_moves) != 0 && !move_valid {
@@ -800,7 +792,6 @@ pub mod moves {
                 error = errors::CHECK_ERROR;
             }
         } else {
-            println!("True");
             error = errors::INVALID_MOVE_ERROR;
         }
 

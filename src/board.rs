@@ -55,17 +55,19 @@ pub mod turn {
 
     #[derive(Debug, Copy, Clone, PartialEq)]
     pub struct GameState {
-        white_points_info: PointsInfo,
-        black_points_info: PointsInfo,
-        board_info: BoardInfo,
-        whites_turn: bool,
+        pub white_points_info: PointsInfo,
+        pub black_points_info: PointsInfo,
+        pub points_delta: i8, // Points change last turn
+        pub board_info: BoardInfo,
+        pub whites_turn: bool,
     }
 
     #[derive(Debug, Copy, Clone, PartialEq)]
     pub struct Error {
-        game_over: bool,
-        white_win: Option<bool>,
-        error_code: i8,
+        pub game_over: bool,
+        pub white_win: Option<bool>,
+        pub error_code: i8,
+        pub value: i8, // A value can be assigned when the game is over to help guide the minimax algorithm. E.g. a value of 127 for checkmate and 0 for stalemate
     }
 
     // Points info stored information on captured pieces, and points of the team that it belongs to
@@ -130,41 +132,25 @@ pub mod turn {
                 game_over: false,
                 white_win: None,
                 error_code: errors::WRONG_TEAM_ERROR,
+                value: 0,
             });
         }
 
+        // Gen move board
         let board_info_new = gen_move_board(piece_coordinates, move_coordinates, board_info);
 
+        // Return error if there was an error in gen_move_board
         let error_code = board_info_new.error_code;
         if error_code != 0 {
             return Err(Error {
                 game_over: false,
                 white_win: None,
                 error_code: error_code,
+                value: 0,
             });
         }
 
-        // At this point there was no error with the move
-        // So get and return a new GameState
-        // The new gamestate will be the state for the next turn
-
         let mut game_state_new = game_state;
-
-        // Update points
-        let mut points;
-        if game_state.whites_turn {
-            points = game_state.white_points_info;
-        } else {
-            points = game_state.black_points_info;
-        }
-
-        let points_new = update_points_info(board_info, board_info_new, points);
-
-        if game_state.whites_turn {
-            game_state_new.white_points_info = points_new;
-        } else {
-            game_state_new.black_points_info = points_new;
-        }
 
         // It will be the opposite teams move after this so flip board_info
         game_state_new.board_info.board = flip_board(board_info_new.board);
@@ -184,15 +170,35 @@ pub mod turn {
                     game_over: true,
                     white_win: Some(game_state.whites_turn),
                     error_code: errors::CHECKMATE_ERROR,
+                    value: 127,
                 });
             } else { // Stalemate
                 return Err(Error {
                     game_over: true,
                     white_win: None,
                     error_code: errors::STALEMATE_ERROR,
+                    value: 0,
                 });
             }
         }
+
+        // Update points
+        let mut points;
+        if game_state.whites_turn {
+            points = game_state.white_points_info;
+        } else {
+            points = game_state.black_points_info;
+        }
+
+        let points_new = update_points_info(board_info, board_info_new, points);
+
+        game_state_new.points_delta = points_new.points_delta;
+        if game_state.whites_turn {
+            game_state_new.white_points_info = points_new;
+        } else {
+            game_state_new.black_points_info = points_new;
+        }
+        
 
         Ok(game_state_new)
     }
@@ -306,6 +312,8 @@ pub mod turn {
                     points_delta: 0,
                 },
 
+                points_delta: 0,
+
                 board_info: BoardInfo {
                     board: fen::decode("5k2/2p5/1pq5/p4P2/6np/8/2R2B2/1K6"),
                     turns_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
@@ -334,6 +342,8 @@ pub mod turn {
                     points_total: 15,
                     points_delta: 0,
                 },
+
+                points_delta: 9,
 
                 board_info: BoardInfo {
                     board: crate::flip_board(fen::decode("5k2/2p5/1pR5/p4P2/6np/8/5B2/1K6")),
@@ -373,6 +383,8 @@ pub mod turn {
                     points_delta: 0,
                 },
 
+                points_delta: 0,
+
                 board_info: BoardInfo {
                     board: fen::decode("k7/3Q4/8/8/8/8/8/8"),
                     turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[0]],
@@ -391,9 +403,55 @@ pub mod turn {
                 game_over: true,
                 white_win: None,
                 error_code: errors::STALEMATE_ERROR,
+                value: 0,
             });
 
             assert_eq!(result, expected);
+        }
+
+        #[test]
+        fn new_turn_test3() { // Test an invalid move error being returned
+            let game_state = GameState {
+                white_points_info: PointsInfo {
+                    captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
+                    captured_pieces_no: 0,
+                    points_total: 0,
+                    points_delta: 0,
+                },
+
+                black_points_info: PointsInfo {
+                    captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
+                    captured_pieces_no: 0,
+                    points_total: 0,
+                    points_delta: 0,
+                },
+
+                points_delta: 0,
+
+                board_info: BoardInfo {
+                    board: fen::decode("k7/3Q4/8/8/8/8/8/8"),
+                    turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[0]],
+                    last_turn_coordinates: [0, 0],
+                    capture_coordinates: None,
+                    error_code: 0,
+                    pieces: crate::piece::info::Piece::instantiate_all(),
+                },
+
+                whites_turn: true,
+            };
+
+            let expected = Err(Error {
+                game_over: false,
+                white_win: None,
+                error_code: errors::INVALID_MOVE_ERROR,
+                value: 0,
+            });
+
+            for i in 0..1 {
+                let result = new_turn([7, 3], [2, 6], game_state);
+                assert_eq!(result, expected);
+            }
+            
         }
     }
 }

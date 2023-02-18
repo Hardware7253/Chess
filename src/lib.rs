@@ -1,6 +1,7 @@
 pub mod fen;
 pub mod piece;
 pub mod board;
+pub mod algorithm;
 use crate::board::BOARD_SIZE;
 
 // Converts chess coordinate notation (a2) to cartesian coordinates (x, y)
