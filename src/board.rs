@@ -429,7 +429,7 @@ pub mod turn {
                 points_delta: 0,
 
                 board_info: BoardInfo {
-                    board: fen::decode("k7/3Q4/8/8/8/8/8/8"),
+                    board: fen::decode("k7/r2r3p/8/8/8/3Q4/8/6K1"),
                     turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[0]],
                     last_turn_coordinates: [0, 0],
                     capture_coordinates: None,
@@ -451,7 +451,44 @@ pub mod turn {
                 let result = new_turn([7, 3], [2, 6], game_state);
                 assert_eq!(result, expected);
             }
-            
+        }
+
+        #[test]
+        fn new_turn_test4() { // Test use case where new_turn gets used consecutively for making turns
+            use crate::flip_coordinates;
+            let game_state = GameState {
+                white_points_info: PointsInfo {
+                    captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
+                    captured_pieces_no: 0,
+                    points_total: 0,
+                    points_delta: 0,
+                },
+
+                black_points_info: PointsInfo {
+                    captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
+                    captured_pieces_no: 0,
+                    points_total: 0,
+                    points_delta: 0,
+                },
+
+                points_delta: 0,
+
+                board_info: BoardInfo {
+                    board: fen::decode("k7/r2r4/6p1/8/8/3Q4/8/6K1"),
+                    turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[0]],
+                    last_turn_coordinates: [0, 0],
+                    capture_coordinates: None,
+                    error_code: 0,
+                    pieces: crate::piece::info::Piece::instantiate_all(),
+                },
+
+                whites_turn: true,
+            };
+
+            let turn_white = new_turn([3, 2], [3, 6], game_state).unwrap();
+            let turn_black = new_turn(flip_coordinates([0, 6]), flip_coordinates([3, 6]), turn_white).unwrap();
+
+            assert_eq!(turn_white.points_delta - turn_black.points_delta, -4);
         }
     }
 }

@@ -8,7 +8,7 @@ fn main() {
 
     // Get one pieces array to use for the entire program
     let pieces = chess::piece::info::Piece::instantiate_all();
-
+    
     //let board = chess::fen::decode("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
     let board = chess::fen::decode("8/8/8/8/8/8/2P5/8");
     println!("{:?}", board);

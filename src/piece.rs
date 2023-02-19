@@ -671,7 +671,15 @@ pub mod moves {
         // Get king coordinates
         // No error handling for when no king is found, since it should not occur in a normal chess game.
         let king_coordinates = crate::find_id_in_board(king_id, board_info.board);
-        let king_coordinates = unwrap_def(king_coordinates, [0, 0]);
+
+        // Unwrap king_coordinates
+        let king_coordinates = match king_coordinates {
+            Some(coordinates) => coordinates,
+            None => return CheckType { // Return if there is no king on the board
+                check: false,
+                mate: false,
+            },
+        };
 
         let enemy_moves_board = gen_enemy_moves(white, board_info);
 
