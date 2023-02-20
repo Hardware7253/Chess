@@ -902,6 +902,30 @@ pub mod moves {
         }
 
         #[test]
+        fn pawn_temp_test() { // Test pawn double move
+            let board_info = BoardInfo {
+                board: fen::decode("8/8/8/4p3/3b1p2/4P3/8/8"),
+                turns_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
+                last_turn_coordinates: [0i8; 2],
+                capture_coordinates: None,
+                error_code: 0,
+                pieces: info::Piece::instantiate_all(),
+            };
+
+            let moves_board = gen_moves(
+                [4, 2],
+                [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                board_info,
+            );
+
+            let expected = Moves {
+                moves_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 1, 0, 0, 0, 0], [0, 0, 0, 2, 0, 0, 0, 0], [0, 0, 0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
+                capture_coordinates: None,
+            };
+            assert_eq!(moves_board, expected);
+        }
+
+        #[test]
         fn special_capture_test() { // Test pawn special capture direction
             let board_info = BoardInfo {
                 board: fen::decode("8/8/8/8/8/1pp5/2P5/8"),
