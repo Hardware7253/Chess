@@ -6,6 +6,9 @@ pub mod info {
     // Order                  P  R  N  B  Q  K
     pub const IDS: [i8; 6] = [1, 2, 3, 4, 5, 6];
 
+    pub const CHECKMATE_VALUE: i8 = 100; // Value of a checkmate (used for ai)
+    pub const STALEMATE_VALUE: i8 = -1; // Value of a stalemate (used for ai)
+
     #[derive(Debug, Copy, Clone, PartialEq)]
     pub struct Piece {
         pub id_fen: char,
@@ -546,47 +549,14 @@ pub mod moves {
     fn gen_enemy_moves(
     caller_white: bool,
     board_info: BoardInfo)
-    -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
-        use crate::flip_board;
-        use crate::flip_coordinates;
-        
+    -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {        
         // Flip board_info to get enemy perspective
-        let board_info = BoardInfo {
-            board: flip_board(board_info.board),
-            turns_board: flip_board(board_info.turns_board),
-            last_turn_coordinates: flip_coordinates(board_info.last_turn_coordinates),
-            capture_coordinates: None,
-            error_code: 0,
-            pieces: board_info.pieces,
-        };
+        let board_info = crate::flip_board_info(board_info);
 
         let enemy_moves = gen_all_moves(!caller_white, None, board_info);
-        flip_board(enemy_moves) // Flip enemy moves again to get back to perspective of the caller team
+        crate::flip_board(enemy_moves) // Flip enemy moves again to get back to perspective of the caller team
     }
-    
-    // Gen enemy moves, except the enemy paths are blocked by friendly pieces paths
-    fn gen_enemy_moves_blocked(caller_white: bool, ignore_id: Option<i8>, board_info: BoardInfo) -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
-
-        // Add friendly moves blocking paths to current board
-        let mut friendly_moves = gen_all_moves(caller_white, ignore_id, board_info);
-        if !caller_white {
-            friendly_moves = crate::replace_in_board(1, -1, friendly_moves);
-        }
-        let board_with_moves = crate::combine_boards(board_info.board, friendly_moves, 0);
-
-        // Gen enemy moves with modified board
-        let board_info = BoardInfo {
-            board: board_with_moves,
-            turns_board: board_info.turns_board,
-            last_turn_coordinates: board_info.last_turn_coordinates,
-            capture_coordinates: board_info.capture_coordinates,
-            error_code: 0,
-            pieces: board_info.pieces,
-        };
-
-        gen_enemy_moves(caller_white, board_info)
-    }
-    
+        
     // Given original piece coordinates and move coordinates this function checks if the move coordinates are valid for a castle
     // If a castle is possible a new board is returned where the king and rook pieces have castled, otherwise the original board is returned
     fn castle(
@@ -658,26 +628,28 @@ pub mod moves {
         board
     }
 
-    // Get check status of a king from a given team 
-    // Board_info should be from the perspective of get_white team
-    pub fn get_check_state(get_white: bool, get_mate: bool, mut board_info: BoardInfo) -> CheckType {
-        // Get king_id for team specified by get_white
+    // Return true if the king at king_coordinates is in check
+    // No error handling for when there is no king at king_coordinates
+    fn king_check(king_coordinates: [i8; 2], king_white: bool, board_info: BoardInfo) -> bool {
+        let enemy_moves_board = gen_enemy_moves(king_white, board_info);
+        if crate::get_board(king_coordinates, enemy_moves_board) == 1 {
+            return true;
+        }
+        false
+    }
+
+    // Get check status of a king from a given team
+    // Board_info must be from this teams perspective
+    pub fn get_check_state(white: bool, get_mate: bool, board_info: BoardInfo) -> CheckType {
+        use crate::coordinates_from_usize;
+
+        // Get king_id for team specified by (white)
         let mut king_id = info::IDS[5];
         if !white {
             king_id = king_id * -1;
         };
 
-        // Generate moves for friendly pieces on board (individaully)
-        // Check if piece puts king_id in check
-        // If it does set check to true and add piece coordinates to an array
-        // Generate friendly moves for pieces that don't put the king in check
-        // Generate enemy moves
-        // Use the resulting turns board as the board to generate moves for a piece putting the king in check
-        // Repeat this for all pieces putting the king in check, and then add the board to the friendly move board for pieces that don't put the king in check
-        // Compare the final move board and see if all king move sqaures cant be moved to, if they can't be moved to the mate condition is true
-
         // Get king coordinates
-        // No error handling for when no king is found, since it should not occur in a normal chess game.
         let king_coordinates = crate::find_id_in_board(king_id, board_info.board);
 
         // Unwrap king_coordinates
@@ -689,47 +661,57 @@ pub mod moves {
             },
         };
 
-        for x in 0..BOARD_SIZE[0] {
-            for y in 0..BOARD_SIZE[1] {
-                let piece_coordinates = crate::coordinates_from_usize([x, y]);
-                let move_board = gen_moves(piece_coordinates, [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], board_info);
-            }
-        }
+        // Check for king check
+        let check = king_check(king_coordinates, white, board_info);
 
-        
-
-        /*
+        // Check for king mate
         let mut mate = false;
         if get_mate {
-            let enemy_moves_board = gen_enemy_moves_blocked(white, Some(king_id), board_info);
-
-            let king_mdirs = board_info.pieces[usize::try_from(king_id.abs() - 1).unwrap()].mdirs;
-            let king_mdir_no = board_info.pieces[usize::try_from(king_id.abs() - 1).unwrap()].mdir_no;
-
-            // Check for king mate
-            // If every square the king can move to would put it in check, then the mate condition is true
             mate = true;
-            for i in 0..king_mdir_no {
-                // Get king move coordinates from current position
-                let move_coordinates = [
-                    king_coordinates[0] + king_mdirs[i][0],
-                    king_coordinates[1] + king_mdirs[i][1],
-                ];
+            for piece_x in 0..BOARD_SIZE[0] {
+                for piece_y in 0..BOARD_SIZE[1] {
+                    let piece_coordinates = coordinates_from_usize([piece_x, piece_y]);
 
-                if fits_in_board(move_coordinates) { // Check move is valid
-                    if !friendly_piece(king_id, get_board(move_coordinates, board_info.board)) { // Check move is valid
-                        // Regenerate enemy moves after move
-                        board_info.board = crate::move_board_value(king_coordinates, move_coordinates, 0, board_info.board);
-                        let enemy_moves_board = gen_enemy_moves_blocked(white, Some(king_id), board_info);
+                    let piece_id = get_board(piece_coordinates, board_info.board);
+                    if friendly_piece(piece_id, king_id) && piece_id != 0 { // Check id at piece_coordinates is a friendly piece
+                        let piece_moves = gen_moves(piece_coordinates, [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]], board_info);
 
-                        if get_board(move_coordinates, enemy_moves_board) != 1 { // If the king after the move is not in a square the enemy can move to then the mate condition is false
-                            mate = false;
+                        for move_x in 0..BOARD_SIZE[0] {
+                            for move_y in 0..BOARD_SIZE[1] {
+                                let move_coordinates = coordinates_from_usize([move_x, move_y]);
+
+                                if get_board(move_coordinates, piece_moves.moves_board) != 0 { // Check move_coordinates can be moved to
+                                    
+                                    // Update king_coordinates if the king was moved
+                                    let mut king_coordinates = king_coordinates;
+                                    if piece_coordinates == king_coordinates {
+                                        king_coordinates = move_coordinates;
+                                    }
+
+                                    // Move piece from piece_coordinates to move_coordinates
+                                    let post_move_board = crate::move_board_value(piece_coordinates, move_coordinates, 0, board_info.board);
+
+                                    // Remove any force capture coordinates
+                                    let post_move_board = match piece_moves.capture_coordinates {
+                                        Some(capture_coordinates) => crate::set_board(capture_coordinates, 0, post_move_board),
+                                        None => post_move_board,
+                                    };
+
+                                    let mut board_info_pm = board_info;
+                                    board_info_pm.board = post_move_board;
+
+                                    // Check if moving frienly piece from piece_coordinates to move_coordinates stops the check
+                                    // If it does then mate is false
+                                    if !king_check(king_coordinates, white, board_info_pm) {
+                                        mate = false;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-        */
         
         CheckType {
             check: check,
@@ -979,27 +961,6 @@ pub mod moves {
             assert_eq!(moves_board, expected);
         }
 
-        #[test]
-        fn gen_enemy_moves_blocked_test() {
-            let board_info = BoardInfo {
-                board: fen::decode("8/4Q3/8/8/8/8/8/r7"),
-                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                last_turn_coordinates: [0i8; 2],
-                capture_coordinates: None,
-                error_code: 0,
-                pieces: info::Piece::instantiate_all(),
-            };
-
-            let moves_board = gen_enemy_moves_blocked(
-                true,
-                None,
-                board_info,
-            );
-
-            let expected = [[0, 1, 1, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
-            assert_eq!(moves_board, expected);
-        }
-
         // castle tests ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         #[test]
         fn left_castle_test() { // Test king trying to castle left with no obstacles
@@ -1050,9 +1011,9 @@ pub mod moves {
         
         // get_check_state tests ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         #[test]
-        fn get_check_state_test1() { // Test check mate
+        fn get_check_state_test1() { // Test check mate 
             let board_info = BoardInfo {
-                board: fen::decode("8/8/8/4b3/8/8/1q6/K7"),
+                board: fen::decode("k7/1Q6/6r1/8/8/5B2/8/8"),
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
@@ -1060,7 +1021,7 @@ pub mod moves {
                 pieces: info::Piece::instantiate_all(),
             };
 
-            let result = get_check_state(true, true, board_info);
+            let result = get_check_state(false, true, board_info);
 
             let expected = CheckType {
                 check: true,
@@ -1094,7 +1055,7 @@ pub mod moves {
         #[test]
         fn get_check_state_test3() { // Test check mate being blocked by friendly rook
             let board_info = BoardInfo {
-                board: fen::decode("4R3/8/8/8/8/8/5PPP/r5K1"),
+                board: fen::decode("K7/1q5R/8/8/8/5b2/8/8"),
                 turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
                 last_turn_coordinates: [0i8; 2],
                 capture_coordinates: None,
@@ -1107,27 +1068,6 @@ pub mod moves {
             let expected = CheckType {
                 check: true,
                 mate: false,
-            };
-
-            assert_eq!(result, expected);
-        }
-
-        #[test]
-        fn get_check_state_test4() { // Test check mate
-            let board_info = BoardInfo {
-                board: fen::decode("k7/1Q6/6r1/8/8/5B2/8/8"),
-                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
-                last_turn_coordinates: [0i8; 2],
-                capture_coordinates: None,
-                error_code: 0,
-                pieces: info::Piece::instantiate_all(),
-            };
-
-            let result = get_check_state(false, true, board_info);
-
-            let expected = CheckType {
-                check: true,
-                mate: true,
             };
 
             assert_eq!(result, expected);

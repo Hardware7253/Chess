@@ -120,8 +120,6 @@ pub mod turn {
         use crate::piece_white;
         use crate::piece::moves::gen_move_board;
         use crate::piece::moves::get_check_state;
-        use crate::flip_board;
-        use crate::flip_coordinates;
         
         let board_info = game_state.board_info;
 
@@ -152,14 +150,12 @@ pub mod turn {
         let mut game_state_new = game_state;
 
         // It will be the opposite teams move after this so flip board_info
-        game_state_new.board_info.board = flip_board(board_info_new.board);
-        game_state_new.board_info.turns_board = flip_board(board_info_new.turns_board);
-        game_state_new.board_info.last_turn_coordinates = flip_coordinates(board_info_new.last_turn_coordinates);
+        game_state_new.board_info = crate::flip_board_info(board_info_new);
 
         // Invert whites_turn bool to set the next turn to be the opposite team
         game_state_new.whites_turn = !game_state.whites_turn;
 
-        // Return an error if the king enemy is checkmated or stalemated after the turn
+        // Return an error if the enemy king is checkmated or stalemated after the turn
         let check_state = get_check_state(game_state_new.whites_turn, true, game_state_new.board_info);
         if check_state.mate {
             
@@ -170,14 +166,14 @@ pub mod turn {
                     game_over: true,
                     white_win: Some(game_state.whites_turn),
                     error_code: errors::CHECKMATE_ERROR,
-                    value: 100,
+                    value: crate::piece::info::CHECKMATE_VALUE,
                 });
             } else { // Stalemate
                 return Err(Error {
                     game_over: true,
                     white_win: None,
                     error_code: errors::STALEMATE_ERROR,
-                    value: 0,
+                    value: crate::piece::info::STALEMATE_VALUE,
                 });
             }
         }
@@ -403,50 +399,7 @@ pub mod turn {
                 game_over: true,
                 white_win: None,
                 error_code: errors::STALEMATE_ERROR,
-                value: 0,
-            });
-
-            assert_eq!(result, expected);
-        }
-
-        #[test]
-        fn new_turn_test_temp() { // Test an error being returned for checkmate
-            let game_state = GameState {
-                white_points_info: PointsInfo {
-                    captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
-                    captured_pieces_no: 0,
-                    points_total: 0,
-                    points_delta: 0,
-                },
-
-                black_points_info: PointsInfo {
-                    captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
-                    captured_pieces_no: 0,
-                    points_total: 0,
-                    points_delta: 0,
-                },
-
-                points_delta: 0,
-
-                board_info: BoardInfo {
-                    board: fen::decode("k7/1p6/6r1/8/8/5B2/8/1Q6"),
-                    turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[0]],
-                    last_turn_coordinates: [0, 0],
-                    capture_coordinates: None,
-                    error_code: 0,
-                    pieces: crate::piece::info::Piece::instantiate_all(),
-                },
-
-                whites_turn: true,
-            };
-
-            let result = new_turn([1, 0], [1, 6], game_state);
-
-            let expected = Err(Error {
-                game_over: true,
-                white_win: Some(true),
-                error_code: errors::CHECKMATE_ERROR,
-                value: 100,
+                value: crate::piece::info::STALEMATE_VALUE,
             });
 
             assert_eq!(result, expected);

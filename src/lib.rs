@@ -3,6 +3,7 @@ pub mod piece;
 pub mod board;
 pub mod algorithm;
 use crate::board::BOARD_SIZE;
+use crate::piece::moves::BoardInfo;
 
 // Converts chess coordinate notation (a2) to cartesian coordinates (x, y)
 pub fn ccn_to_cart(ccn: Vec<char>) -> Result<[i8; 2], ()> {
@@ -91,6 +92,18 @@ pub fn flip_coordinates(coordinates: [i8; 2]) -> [i8; 2] {
     [coordinates_flip_x, coordinates_flip_y]
 }
 
+// Flips fields that can be flipped in the BoardInfo struct
+pub fn flip_board_info(board_info: BoardInfo) -> BoardInfo {
+    BoardInfo {
+        board: flip_board(board_info.board),
+        turns_board: flip_board(board_info.turns_board),
+        last_turn_coordinates: flip_coordinates(board_info.last_turn_coordinates),
+        capture_coordinates: board_info.capture_coordinates,
+        error_code: board_info.error_code,
+        pieces: board_info.pieces,
+    }
+}
+
 // Convert standard [i8; 2] coordinates into [usize; 2] coordinates
 pub fn coordinates_to_usize(coordinates: [i8; 2]) -> [usize; 2] {
     [usize::try_from(coordinates[0]).unwrap(), usize::try_from(coordinates[1]).unwrap()]
@@ -111,12 +124,14 @@ pub fn fits_in_board(coordinates: [i8; 2]) -> bool {
 
 // Returns the value at a given coordinates on a board array
 pub fn get_board(coordinates: [i8; 2], board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> i8 {
-    board[usize::try_from(coordinates[0]).unwrap()][usize::try_from(coordinates[1]).unwrap()]
+    let coordinates = coordinates_to_usize(coordinates);
+    board[coordinates[0]][coordinates[1]]
 }
 
 // Returns the original board, with the value at coordinates
 pub fn set_board(coordinates: [i8; 2], value: i8, mut board: [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
-    board[usize::try_from(coordinates[0]).unwrap()][usize::try_from(coordinates[1]).unwrap()] = value;
+    let coordinates = coordinates_to_usize(coordinates);
+    board[coordinates[0]][coordinates[1]] = value;
     board
 }
 
@@ -236,6 +251,31 @@ mod tests {
     #[test]
     fn flip_coordinates_test() {
         assert_eq!(flip_coordinates([0, 0]), [7, 7]);
+    }
+
+    #[test]
+    fn flip_board_info_test() {
+        let board_info = BoardInfo {
+            board: fen::decode("8/8/8/3P4/8/8/8/R7"),
+            turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[0]],
+            last_turn_coordinates: [0, 0],
+            capture_coordinates: None,
+            error_code: 0,
+            pieces: crate::piece::info::Piece::instantiate_all(),
+        };
+
+        let expected = BoardInfo {
+            board: fen::decode("7R/8/8/8/4P3/8/8/8"),
+            turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[0]],
+            last_turn_coordinates: [7, 7],
+            capture_coordinates: None,
+            error_code: 0,
+            pieces: crate::piece::info::Piece::instantiate_all(),
+        };
+
+        let board_info_flipped = flip_board_info(board_info);
+
+        assert_eq!(board_info_flipped, expected);
     }
 
     #[test]

@@ -3,14 +3,10 @@ pub mod minimax {
     use crate::board::turn::GameState;
     use crate::board::BOARD_SIZE;
 
-    // Notes
-    // The board k7/1Q6/6r1/8/8/5B2/8/8 is not checkmate because the rook
-    // is considered to be blocking the bishop.
+    // You also need to make sure that kings cannot be near each other, and make pawns promote
 
-    // To remedy this get check state has to be able to find the piece that
-    // is putting the king in check, and only have sliding pieces block that
-    // pieces path. Because in the example above the rook is blocking the friendly
-    // bishops sightline. Which is making the function think there is no mate.
+    // Also for optimization at some point get rid of pointless match statements where bools are set to true to find if a variable
+    // Should be unwrapped
 
     #[derive(Debug, Copy, Clone, PartialEq)]
     struct BranchValue {
@@ -29,7 +25,7 @@ pub mod minimax {
         }
     }
 
-    fn best_move(master_team: bool, init_val: i8, search_depth: usize, current_depth: usize, /*parent_value: Option<i8>,*/ game_state: GameState) -> BranchValue {
+    fn best_move(master_team: bool, init_val: i8, search_depth: usize, current_depth: usize, parent_value: Option<i8>, game_state: GameState) -> BranchValue {
         use crate::coordinates_from_usize;
         use crate::board::errors;
 
@@ -42,19 +38,21 @@ pub mod minimax {
             };
         }
 
+        // Unwrap parent value
+        let mut use_parent_value = false;
+        let parent_value = match parent_value {
+            Some(value) => {use_parent_value = true; value},
+            None => 0,
+        };
+
         let mut max = BranchValue::new();
         let mut min = BranchValue::new();
 
-        let mut max_branch = BranchValue::new();
-        let mut min_branch = BranchValue::new();
-
         let mut init_min_max = true;
-        let mut init_min_max_branch = true;
 
-        let mut min_max_val = None;
-        let mut min_max_val_branch: Option<i8> = None;
+        let mut min_max_val: Option<i8> = None;
 
-        for x_piece in 0..BOARD_SIZE[0] {
+        'master: for x_piece in 0..BOARD_SIZE[0] {
             for y_piece in 0..BOARD_SIZE[1] {
                 let piece_coordinates = coordinates_from_usize([x_piece, y_piece]);
 
@@ -79,8 +77,9 @@ pub mod minimax {
                                 // If the error was not a checkmate, or stalemate then the error was related to an invalid move
                                 if error.error_code != errors::CHECKMATE_ERROR && error.error_code != errors::STALEMATE_ERROR {
                                     valid_move = false;
-                                } else {
+                                } else { // If the error was a checkmate or stalemate return error.value
                                     let mut error_val = error.value;
+
                                     if !master_team {
                                         error_val *= -1;
                                     }
@@ -102,23 +101,12 @@ pub mod minimax {
                             move_val *= -1
                         }
 
-                        let mut branch_val = init_val + move_val;
-
-                        // Set branch val to move val incase of checkmate or stalemate
-                        if move_error && valid_move {
-                            branch_val = move_val;
-                        }
-
-                        /*
-                        if branch_val > 50 {
-                            println!("{}", branch_val);
-                        }
-                        */
+                        let branch_val = init_val + move_val;
 
                         if !move_error { // Do not check child branches inscase of a move error
-                            let child_min_max = best_move(!master_team, branch_val, search_depth, current_depth + 1, game_state_new.unwrap()); // Get min/max value of child branch
+                            let child_min_max = best_move(!master_team, branch_val, search_depth, current_depth + 1, min_max_val, game_state_new.unwrap()); // Get min/max value of child branch
                             
-                            // Update min and max for child value
+                            // Update min and max with child value
                             if init_min_max { // Initialize max and min value
                                 max = BranchValue {
                                     piece_coordinates: piece_coordinates,
@@ -153,52 +141,25 @@ pub mod minimax {
                                 }
                             }
 
-                        } else if valid_move { // Only update branch min max for valid moves (so no invalid moves are returned)
-
-                            // Update min and max for branch value
-                            if init_min_max_branch { // Initialize max and min value
-                                max_branch = BranchValue {
-                                    piece_coordinates: piece_coordinates,
-                                    move_coordinates: move_coordinates,
-                                    value: branch_val,
-                                };
-
-                                min_branch = BranchValue {
-                                    piece_coordinates: piece_coordinates,
-                                    move_coordinates: move_coordinates,
-                                    value: branch_val,
-                                };
-
-                                init_min_max_branch = false;
-                            } else if branch_val > max_branch.value { // Update max value
-                                max_branch = BranchValue {
-                                    piece_coordinates: piece_coordinates,
-                                    move_coordinates: move_coordinates,
-                                    value: branch_val,
-                                };
-                            } else if branch_val < min_branch.value { // Update min value
-                                min_branch = BranchValue {
-                                    piece_coordinates: piece_coordinates,
-                                    move_coordinates: move_coordinates,
-                                    value: branch_val,
-                                };
+                            // Alpha beta pruning
+                            if use_parent_value {
+                                if master_team {
+                                    if max.value > parent_value {
+                                        break 'master;
+                                    }
+                                } else if min.value < parent_value {
+                                    break 'master;
+                                }
                             }
-                        }    
+                            
+
+                        }
                     }
                 }
             }
         }
 
-        // If no child branches were searched every possible move at this depth was an invalid move
-        // So set min and max value to branch min and max value
-        if !init_min_max_branch {
-            max = max_branch;
-            min = min_branch;
-        }
-
         if master_team { // Return max values for master team
-            //println!("{}", max.value);
-            // You got to update the god damn best_move function to get the checkmate
             return max;
         }
 
@@ -245,7 +206,7 @@ pub mod minimax {
                 whites_turn: true,
             };
 
-            assert_eq!(best_move(true, 0, 3, 0, game_state).move_coordinates, [7, 1]);
+            assert_eq!(best_move(true, 0, 3, 0, None, game_state).move_coordinates, [7, 1]);
         }
 
         #[test]
@@ -279,10 +240,9 @@ pub mod minimax {
                 whites_turn: true,
             };
 
-            assert_eq!(best_move(true, 0, 3, 0, game_state).move_coordinates, [3, 3]);
+            assert_eq!(best_move(true, 0, 3, 0, None, game_state).move_coordinates, [3, 3]);
         }
 
-        /*
         #[test]
         fn best_move_test3() {
             let game_state = GameState {
@@ -314,8 +274,7 @@ pub mod minimax {
                 whites_turn: true,
             };
 
-            assert_eq!(best_move(true, 0, 4, 0, game_state), BranchValue::new());
+            assert_eq!(best_move(true, 0, 3, 0, None, game_state).move_coordinates, [1, 6]);
         }
-        */
     }
 }
