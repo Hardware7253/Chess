@@ -3,6 +3,7 @@ use crate::board::BOARD_SIZE;
 // Module containing piece information such as IDS and moves
 pub mod info {
     // Piece ids, order must not change, ids can
+    // The smallest id should be 1 and the largest should be the same as IDS.len()
     // Order                  P  R  N  B  Q  K
     pub const IDS: [i8; 6] = [1, 2, 3, 4, 5, 6];
 
@@ -356,14 +357,15 @@ pub mod moves {
 
         // If the piece has a negative id change it to positive so it can be used to index pieces array
         let pieces_index = id.abs() - 1;
+        let pieces_index = usize::try_from(pieces_index).unwrap();
 
         // mdirs information (movement directions)
-        let mdirs = pieces[usize::try_from(pieces_index).unwrap()].mdirs;
-        let mut mdir_no = pieces[usize::try_from(pieces_index).unwrap()].mdir_no;
-        let mut slides = pieces[usize::try_from(pieces_index).unwrap()].sliding;
+        let mdirs = pieces[pieces_index].mdirs;
+        let mut mdir_no = pieces[pieces_index].mdir_no;
+        let mut slides = pieces[pieces_index].sliding;
         
         // Unwrap slide_no Option<T>
-        let slide_no = pieces[usize::try_from(pieces_index).unwrap()].slide_no;
+        let slide_no = pieces[pieces_index].slide_no;
         let mut slide_no = unwrap_def(slide_no, MAX_SLIDES);
         
         if get_board(piece_coordinates, turns_board) != 0 && slide_no != MAX_SLIDES {
@@ -378,10 +380,10 @@ pub mod moves {
         }
             
         // Special captures and conditions
-        let mdirs_cap = pieces[usize::try_from(pieces_index).unwrap()].mdirs_cap;
-        let condition_adj = pieces[usize::try_from(pieces_index).unwrap()].condition_adj;
-        let condition_self_y = pieces[usize::try_from(pieces_index).unwrap()].condition_self_y;
-        let condition_subj_moves = pieces[usize::try_from(pieces_index).unwrap()].condition_subj_moves;
+        let mdirs_cap = pieces[pieces_index].mdirs_cap;
+        let condition_adj = pieces[pieces_index].condition_adj;
+        let condition_self_y = pieces[pieces_index].condition_self_y;
+        let condition_subj_moves = pieces[pieces_index].condition_subj_moves;
 
         // Check for special capture
         let mut special_capture = false;
@@ -558,6 +560,7 @@ pub mod moves {
     }
         
     // Given original piece coordinates and move coordinates this function checks if the move coordinates are valid for a castle
+    // Function assumes piece at piece_coordinates is a king
     // If a castle is possible a new board is returned where the king and rook pieces have castled, otherwise the original board is returned
     fn castle(
     piece_coordinates: [i8; 2],
@@ -573,7 +576,7 @@ pub mod moves {
         let id = get_board(piece_coordinates, board);
         
         // Check the piece being moved is a king, the king has moves 0 times, and the king is not in check
-        if id == pieces[5].id && get_board(piece_coordinates, turns_board) == 0 && get_board(piece_coordinates, enemy_moves_board) == 0 {
+        if get_board(piece_coordinates, turns_board) == 0 && get_board(piece_coordinates, enemy_moves_board) == 0 {
 
             // King castle mdirs
             let king_mdir_repeats: usize = 2; // How many times to repeat king_mdirs to get to castle position
@@ -627,6 +630,8 @@ pub mod moves {
         }
         board
     }
+
+    //fn king_move
 
     // Return true if the king at king_coordinates is in check
     // No error handling for when there is no king at king_coordinates
@@ -724,6 +729,7 @@ pub mod moves {
     pub fn gen_move_board(
     piece_coordinates: [i8; 2],
     move_coordinates: [i8; 2],
+    promotion_id: i8, // Promotion id should always be positive
     mut board_info: BoardInfo)
     -> BoardInfo {
         use crate::board::errors;
@@ -768,6 +774,25 @@ pub mod moves {
 
             // Get board where the piece at piece_coordinates is moved to move_coordinates
             let mut post_move_board = move_board_value(piece_coordinates, move_coordinates, 0, board);
+
+            // Get pawn, king, and promoted id that matches current team
+            let mut pawn_id = pieces[0].id;
+            let mut king_id = pieces[5].id;
+            let mut promoted_id = promotion_id;
+            if !piece_white {
+                pawn_id *= -1;
+                king_id *= -1;
+                promoted_id *= -1;
+            }
+
+            // If the piece is a pawn promote it to the preferred promotion piece
+            if id == pawn_id && crate::coordinates_to_usize(move_coordinates)[1] == BOARD_SIZE[1] - 1 {
+                if promotion_id != id && promotion_id != king_id && promotion_id <= info::IDS.len().try_into().unwrap() && promotion_id > 0 { // Do not allow promoting to kings, pawns, or any invalid values
+                    post_move_board = set_board(move_coordinates, promoted_id, post_move_board)
+                } else {
+                    error = errors::WRONG_PAWN_PROMOTE_ERROR;
+                }
+            }
 
             // Check if there are coordinates which have to be captured
             let mut force_capture_coordinates = false;
@@ -1089,6 +1114,7 @@ pub mod moves {
             let result = gen_move_board(
                 [1, 0],
                 [6, 5],
+                0,
                 board_info,
             );
 
@@ -1111,6 +1137,7 @@ pub mod moves {
             let result = gen_move_board(
                 [1, 0],
                 [6, 5],
+                0,
                 board_info,
             );
 
@@ -1132,6 +1159,7 @@ pub mod moves {
             let result = gen_move_board(
                 [3, 1],
                 [1, 2],
+                0,
                 board_info,
             );
 
@@ -1152,6 +1180,7 @@ pub mod moves {
             let result = gen_move_board(
                 [0, 1],
                 [7, 7],
+                0,
                 board_info,
             );
 
@@ -1172,6 +1201,7 @@ pub mod moves {
             let result = gen_move_board(
                 [1, 0],
                 [0, 0],
+                0,
                 board_info,
             );
 
@@ -1192,6 +1222,7 @@ pub mod moves {
             let result = gen_move_board(
                 [6, 6],
                 [6, 7],
+                0,
                 board_info,
             );
 
@@ -1212,6 +1243,7 @@ pub mod moves {
             let result = gen_move_board(
                 [4, 0],
                 [6, 0],
+                0,
                 board_info,
             );
 
@@ -1241,6 +1273,7 @@ pub mod moves {
             let result = gen_move_board(
                 [5, 4],
                 [4, 5],
+                0,
                 board_info,
             );
 
@@ -1249,6 +1282,36 @@ pub mod moves {
                 turns_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 4, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
                 last_turn_coordinates: [4, 5],
                 capture_coordinates: Some([4, 4]),
+                error_code: 0,
+                pieces: info::Piece::instantiate_all(),
+            };
+
+            assert_eq!(result, expected);
+        }
+
+        #[test]
+        fn gen_move_board_test9() { // Test pawn promoting to queen
+            let board_info = BoardInfo {
+                board: fen::decode("8/2p5/8/8/8/8/8/8"),
+                turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+                last_turn_coordinates: [0, 0],
+                capture_coordinates: None,
+                error_code: 0,
+                pieces: info::Piece::instantiate_all(),
+            };
+
+            let result = gen_move_board(
+                [2, 6],
+                [2, 7],
+                info::IDS[4],
+                board_info,
+            );
+
+            let expected =  BoardInfo {
+                board: fen::decode("2q5/8/8/8/8/8/8/8"),
+                turns_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 1], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
+                last_turn_coordinates: [2, 7],
+                capture_coordinates: None,
                 error_code: 0,
                 pieces: info::Piece::instantiate_all(),
             };

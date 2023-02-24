@@ -10,6 +10,7 @@ pub mod errors {
     pub const STALEMATE_ERROR: i8 = 3;
     pub const INVALID_MOVE_ERROR: i8 = 4;
     pub const WRONG_TEAM_ERROR: i8 = 5;
+    pub const WRONG_PAWN_PROMOTE_ERROR: i8 = 6;
 
     // Returns an error message given an error code
     pub fn message(error_code: i8) -> Option<String> {
@@ -115,6 +116,7 @@ pub mod turn {
     pub fn new_turn(
     piece_coordinates: [i8; 2],
     move_coordinates: [i8; 2],
+    promotion_id: i8,
     game_state: GameState) -> Result<GameState, Error> {
         use crate::get_board;
         use crate::piece_white;
@@ -134,7 +136,7 @@ pub mod turn {
         }
 
         // Gen move board
-        let board_info_new = gen_move_board(piece_coordinates, move_coordinates, board_info);
+        let board_info_new = gen_move_board(piece_coordinates, move_coordinates, promotion_id, board_info);
 
         // Return error if there was an error in gen_move_board
         let error_code = board_info_new.error_code;
@@ -155,13 +157,12 @@ pub mod turn {
         // Invert whites_turn bool to set the next turn to be the opposite team
         game_state_new.whites_turn = !game_state.whites_turn;
 
-        // Return an error if the enemy king is checkmated or stalemated after the turn
+        // Return an error if the enemy king is checkmated or stalemated after the turn (because this signifies the end of the game)
         let check_state = get_check_state(game_state_new.whites_turn, true, game_state_new.board_info);
         if check_state.mate {
             
             // Checkmate
             if check_state.check {
-                //println!("Return");
                 return Err(Error {
                     game_over: true,
                     white_win: Some(game_state.whites_turn),
@@ -322,7 +323,7 @@ pub mod turn {
                 whites_turn: true,
             };
 
-            let result = new_turn([2, 1], [2, 5], game_state);
+            let result = new_turn([2, 1], [2, 5], 0, game_state);
 
             let mut expected = GameState {
                 white_points_info: PointsInfo {
@@ -393,7 +394,7 @@ pub mod turn {
                 whites_turn: true,
             };
 
-            let result = new_turn([3, 6], [2, 6], game_state);
+            let result = new_turn([3, 6], [2, 6], 0, game_state);
 
             let expected = Err(Error {
                 game_over: true,
@@ -443,7 +444,7 @@ pub mod turn {
                 value: 0,
             });
 
-            let result = new_turn([7, 3], [2, 6], game_state);
+            let result = new_turn([7, 3], [2, 6], 0, game_state);
             assert_eq!(result, expected);
         }
 
@@ -479,8 +480,8 @@ pub mod turn {
                 whites_turn: true,
             };
 
-            let turn_white = new_turn([3, 2], [3, 6], game_state).unwrap();
-            let turn_black = new_turn(flip_coordinates([0, 6]), flip_coordinates([3, 6]), turn_white).unwrap();
+            let turn_white = new_turn([3, 2], [3, 6], 0, game_state).unwrap();
+            let turn_black = new_turn(flip_coordinates([0, 6]), flip_coordinates([3, 6]), 0, turn_white).unwrap();
 
             assert_eq!(turn_white.points_delta - turn_black.points_delta, -4);
         }
@@ -516,7 +517,7 @@ pub mod turn {
                 whites_turn: false,
             };
 
-            let result = new_turn([0, 2], [3, 2], game_state);
+            let result = new_turn([0, 2], [3, 2], 0, game_state);
 
             let mut expected = GameState {
                 white_points_info: PointsInfo {
@@ -553,6 +554,48 @@ pub mod turn {
                 Err(_) => {println!("Error"); game_state},
             };
 
+            assert_eq!(result, expected);
+        }
+
+        #[test]
+        fn new_turn_test6() { // Test a check error being returned when a king tries to move next to an enemy king
+            let game_state = GameState {
+                white_points_info: PointsInfo {
+                    captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
+                    captured_pieces_no: 0,
+                    points_total: 0,
+                    points_delta: 0,
+                },
+
+                black_points_info: PointsInfo {
+                    captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
+                    captured_pieces_no: 0,
+                    points_total: 0,
+                    points_delta: 0,
+                },
+
+                points_delta: 0,
+
+                board_info: BoardInfo {
+                    board: fen::decode("8/8/8/3k4/8/2K5/8/8"),
+                    turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[0]],
+                    last_turn_coordinates: [0, 0],
+                    capture_coordinates: None,
+                    error_code: 0,
+                    pieces: crate::piece::info::Piece::instantiate_all(),
+                },
+
+                whites_turn: true,
+            };
+
+            let expected = Err(Error {
+                game_over: false,
+                white_win: None,
+                error_code: errors::CHECK_ERROR,
+                value: 0,
+            });
+
+            let result = new_turn([2, 2], [2, 3], 0, game_state);
             assert_eq!(result, expected);
         }
     }

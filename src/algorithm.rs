@@ -3,11 +3,6 @@ pub mod minimax {
     use crate::board::turn::GameState;
     use crate::board::BOARD_SIZE;
 
-    // You also need to make sure that kings cannot be near each other, and make pawns promote
-
-    // Also for optimization at some point get rid of pointless match statements where bools are set to true to find if a variable
-    // Should be unwrapped
-
     #[derive(Debug, Copy, Clone, PartialEq)]
     struct BranchValue {
         piece_coordinates: [i8; 2],
@@ -63,12 +58,8 @@ pub mod minimax {
                         let mut move_error = false;
                         let mut valid_move = true;
 
-                        if piece_coordinates == [1, 0] && move_coordinates == [1, 6] && current_depth == 0 {
-                            //println!("{:?}", new_turn(piece_coordinates, move_coordinates, game_state));
-                        }
-
                         // Get the material value of moving from piece_coordinates to move_coordinates
-                        let game_state_new = new_turn(piece_coordinates, move_coordinates, game_state);
+                        let game_state_new = new_turn(piece_coordinates, move_coordinates, crate::piece::info::IDS[4], game_state); // The ai will only try to promot pawns to queens
                         let mut move_val = match game_state_new {
                             Ok(game_state) => game_state.points_delta,
                             Err(error) => {
