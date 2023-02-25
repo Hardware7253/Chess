@@ -99,6 +99,7 @@ pub mod turn {
 
         let captured_piece_id = get_board(captured_coordinates, board_info_old.board); // Get id of captured piece
         if captured_piece_id == 0 { // If captured piece id is 0 no pieces were captured
+            points_info.points_delta = 0;
             return points_info;
         }
 

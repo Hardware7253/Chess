@@ -33,6 +33,60 @@ pub mod minimax {
             };
         }
 
+        let mut max = BranchValue::new();
+        let mut min = max;
+
+        let mut init_min_max = true;
+
+        let mut min_max_val: Option<i8> = None;
+
+        
+        // Initialize max and min value with best move using search depth - 1 (iterative deepening)
+        let mut deepening_val = max;
+        let mut use_deepening_val = false;
+        if current_depth == 0 && search_depth > 1 {
+            use_deepening_val = true;
+            deepening_val = best_move(master_team, init_val, search_depth - 1, current_depth, parent_value, game_state);
+
+            let mut valid_move = true;
+            let game_state_new = new_turn(deepening_val.piece_coordinates, deepening_val.move_coordinates, crate::piece::info::IDS[4], game_state); // The ai will only try to promote pawns to queens
+            let move_val = match game_state_new {
+                Ok(game_state) => game_state.points_delta,
+                Err(error) => {
+                    if error.error_code != errors::CHECKMATE_ERROR || error.error_code != errors::STALEMATE_ERROR {
+                        valid_move = false;
+                    }
+
+                    error.value
+                },
+            };
+
+            if valid_move {
+                let child_min_max = best_move(!master_team, move_val, search_depth, current_depth + 1, min_max_val, game_state_new.unwrap());
+                max = BranchValue {
+                    piece_coordinates: deepening_val.piece_coordinates,
+                    move_coordinates: deepening_val.move_coordinates,
+                    value: child_min_max.value,
+                };
+
+                min = BranchValue {
+                    piece_coordinates: deepening_val.piece_coordinates,
+                    move_coordinates: deepening_val.move_coordinates,
+                    value: child_min_max.value,
+                };
+
+                if master_team {
+                    min_max_val = Some(max.value);
+                } else {
+                    min_max_val = Some(min.value);
+                }
+
+                init_min_max = false;
+            }
+        }
+
+        
+        
         // Unwrap parent value
         let mut use_parent_value = false;
         let parent_value = match parent_value {
@@ -40,26 +94,27 @@ pub mod minimax {
             None => 0,
         };
 
-        let mut max = BranchValue::new();
-        let mut min = BranchValue::new();
-
-        let mut init_min_max = true;
-
-        let mut min_max_val: Option<i8> = None;
-
         'master: for x_piece in 0..BOARD_SIZE[0] {
             for y_piece in 0..BOARD_SIZE[1] {
-                let piece_coordinates = coordinates_from_usize([x_piece, y_piece]);
+                let mut piece_coordinates = coordinates_from_usize([x_piece, y_piece]);
 
                 for x_move in 0..BOARD_SIZE[0] {
                     for y_move in 0..BOARD_SIZE[1] {
-                        let move_coordinates = coordinates_from_usize([x_move, y_move]);
+                        let mut move_coordinates = coordinates_from_usize([x_move, y_move]);
+                        
+                        // Skip piece and move coordinates that are the same as the deepening value
+                        // Because deepening value initialized min and max itt does not need to be run again
+                        if use_deepening_val {
+                            if piece_coordinates == deepening_val.piece_coordinates && move_coordinates == deepening_val.move_coordinates {
+                                break;
+                            }
+                        }
 
                         let mut move_error = false;
                         let mut valid_move = true;
 
                         // Get the material value of moving from piece_coordinates to move_coordinates
-                        let game_state_new = new_turn(piece_coordinates, move_coordinates, crate::piece::info::IDS[4], game_state); // The ai will only try to promot pawns to queens
+                        let game_state_new = new_turn(piece_coordinates, move_coordinates, crate::piece::info::IDS[4], game_state); // The ai will only try to promote pawns to queens
                         let mut move_val = match game_state_new {
                             Ok(game_state) => game_state.points_delta,
                             Err(error) => {
@@ -111,6 +166,12 @@ pub mod minimax {
                                     value: child_min_max.value,
                                 };
 
+                                if master_team {
+                                    min_max_val = Some(max.value);
+                                } else {
+                                    min_max_val = Some(min.value);
+                                }
+
                                 init_min_max = false;
                             } else if child_min_max.value > max.value { // Update max value
                                 max = BranchValue {
@@ -142,8 +203,6 @@ pub mod minimax {
                                     break 'master;
                                 }
                             }
-                            
-
                         }
                     }
                 }

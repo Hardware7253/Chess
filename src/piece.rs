@@ -387,15 +387,15 @@ pub mod moves {
 
         // Check for special capture
         let mut special_capture = false;
-        match mdirs_cap {
-            Some(_) => {
+        let mdirs_cap = match mdirs_cap {
+            Some(mdirs) => {
                 special_capture = true;
                 mdir_no = 2;
+                mdirs
             },
 
-            None => special_capture = false,
+            None => {special_capture = false; [[0i8; 2]; 2]},
         };
-        let mdirs_cap = unwrap_def(mdirs_cap, [[0i8; 2]; 2]);
 
         // Check for conditional capture
         let mut conditional_capture = false;
