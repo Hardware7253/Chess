@@ -5,6 +5,8 @@ pub mod algorithm;
 use crate::board::BOARD_SIZE;
 use crate::piece::moves::BoardInfo;
 
+// ccn functions do not scale past single digit coordinates e.g. (2, 11) would not work
+
 // Converts chess coordinate notation (a2) to cartesian coordinates (x, y)
 pub fn ccn_to_cart(ccn: Vec<char>) -> Result<[i8; 2], ()> {
 
@@ -26,6 +28,25 @@ pub fn ccn_to_cart(ccn: Vec<char>) -> Result<[i8; 2], ()> {
 
     let cart: [i8; 2] = [x, y];
     Ok(cart)
+}
+
+// Converts cartesian coordinates (x, y) to chess coordinate notation (a2)
+pub fn cart_to_ccn(coordinates: [i8; 2]) -> Result<String, ()> {
+    if coordinates[0] > 9 || coordinates[1] > 9 || coordinates[0] < 0 || coordinates[1] < 0 {
+        return Err(())
+    }
+
+    let x: u8 = coordinates[0] as u8;
+    let x_char: char = {x + 97} as char;
+
+    let y: u8 = coordinates[1] as u8;
+    let y_char: char = {y + 49} as char;
+    
+    let mut string = String::from("");
+    string.push(x_char);
+    string.push(y_char);
+
+    Ok(string)
 }
 
 // Return true if a char is uppercase
@@ -216,6 +237,15 @@ mod tests {
         let result = ccn_to_cart(pos_vec).unwrap();
 
         assert_eq!(result, [0, 1]);
+    }
+
+    #[test]
+    fn cart_to_ccn_test() {
+        let coordinates: [i8; 2] = [3, 7];
+        let result = cart_to_ccn(coordinates);
+        let expected = String::from("d8");
+
+        assert_eq!(result, Ok(expected));
     }
 
     #[test]
