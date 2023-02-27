@@ -1,20 +1,135 @@
 use std::io;
+use chess::board::turn::GameState;
+use chess::board::turn::PointsInfo;
+use chess::piece::moves::BoardInfo;
+use chess::board::BOARD_SIZE;
+use chess::board::errors;
 
 fn main() {
-    // When using custom fen strings to initiate a game consider how move will affect the game.
-    // E.g. a pawn can en passant when it shouldn't be able to
-    // Or a castle can be initiated when it shouldn't be able to
-    // Check custom fen strings with defualt fen strings to tell if piece have moved
+    
+    let player_white = true;
 
-    // Get one pieces array to use for the entire program
-    let pieces = chess::piece::info::Piece::instantiate_all();
+    let search_depth: usize = 3;
+
+    // Get starting GameState
+    let mut game_state = GameState {
+        white_points_info: PointsInfo {
+            captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
+            captured_pieces_no: 0,
+            points_total: 11,
+            points_delta: 0,
+        },
+
+        black_points_info: PointsInfo {
+            captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
+            captured_pieces_no: 0,
+            points_total: 15,
+            points_delta: 0,
+        },
+
+        points_delta: 0,
+
+        board_info: BoardInfo {
+            board: chess::fen::decode("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"),
+            turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[0]],
+            last_turn_coordinates: [0, 0],
+            capture_coordinates: None,
+            error_code: 0,
+            pieces: chess::piece::info::Piece::instantiate_all(),
+        },
+
+        whites_turn: true,
+    };
+
+    let mut game_over = false;
+
+    let mut player_turn = false;
+    if player_white {
+        player_turn = true;
+    }
+
+    // Continue to make moves untill the game is over
+    while !game_over {
+
+        // Initialize variables
+        let mut game_state_new = Ok(game_state);
+
+        let mut turn_error_struct = chess::board::turn::Error {
+            game_over: false,
+            white_win: None,
+            error_code: 0,
+            value: 0,
+        };
+
+        // Get the team name
+        let mut team_name = "White";
+        if !game_state.whites_turn {
+            team_name = "Black";
+        }
+
+        // Get new game_state from player or ai, depending on who moved last turn
+        let mut turn_error = true;
+        while turn_error {
+
+            // Print whos turn it is
+            if player_white == game_state.whites_turn {
+                println!("{}s turn", team_name);
+            } else {
+                println!("{}s turn (ai)", team_name);
+            }
+            
+
+            if player_turn {
+                let piece_coordinates = get_user_coordinates("Move piece at coordinates: ");
+                let move_coordinates = get_user_coordinates("To new coordinates: ");
     
-    //let board = chess::fen::decode("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-    let board = chess::fen::decode("8/8/8/1P6/1P1P4/1PPP4/8/8");
-    println!("{:?}", board);
-    
-    let coordinates = get_user_coordinates("Enter a coordinate:");
-    println!("{:?}", coordinates);
+                game_state_new = chess::board::turn::new_turn(piece_coordinates, move_coordinates, chess::piece::info::IDS[4], game_state);
+            } else {
+                let best_move = chess::algorithm::minimax::best_move(true, 0, search_depth, 0, None, game_state);
+                game_state_new = chess::board::turn::new_turn(best_move.piece_coordinates, best_move.move_coordinates, chess::piece::info::IDS[4], game_state);
+
+                let piece_ccn = chess::cart_to_ccn(chess::flip_coordinates(best_move.piece_coordinates)).unwrap();
+                let move_ccn = chess::cart_to_ccn(chess::flip_coordinates(best_move.move_coordinates)).unwrap();
+
+                println!("{} to {}", piece_ccn, move_ccn);
+                println!("");
+            }
+            
+            // Set turn_error to false if the move was valid, or the game is over
+            match game_state_new {
+                Ok(game_state_unwrapped) => turn_error = false,
+                Err(error) => {
+                    if error.error_code == errors::CHECKMATE_ERROR && error.error_code == errors::STALEMATE_ERROR {
+                        let error_message = errors::message(error.error_code);
+                        println!("{}", error_message.unwrap());
+                        turn_error = false;
+                        turn_error_struct = error;
+                    } else {
+                        let error_message = errors::message(error.error_code);
+                        println!("{}", error_message.unwrap());
+                        println!("Please try again: ");
+                        println!("");
+                    }
+                },
+            };
+        }
+
+        // If the game is over give a game over message
+        if turn_error_struct.game_over {
+            game_over = true;
+            match turn_error_struct.white_win {
+                Some(white_win) => {
+                    println!("{} team wins!", team_name);
+                },
+                None => println!("Tie!"),
+            }
+        } else { // Else update game state with the new one
+            game_state = game_state_new.unwrap();
+        }
+
+        // Invert player_turn so the opposite team moves next move
+        player_turn = !player_turn;
+    }
 }
 
 // Get CCN coordinate from the user and convert it to standard cartesian coordinates

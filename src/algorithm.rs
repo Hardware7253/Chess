@@ -4,10 +4,10 @@ pub mod minimax {
     use crate::board::BOARD_SIZE;
 
     #[derive(Debug, Copy, Clone, PartialEq)]
-    struct BranchValue {
-        piece_coordinates: [i8; 2],
-        move_coordinates: [i8; 2],
-        value: i8,
+    pub struct BranchValue {
+        pub piece_coordinates: [i8; 2],
+        pub move_coordinates: [i8; 2],
+        pub value: i8,
     }
 
     impl BranchValue {
@@ -20,7 +20,7 @@ pub mod minimax {
         }
     }
 
-    fn best_move(master_team: bool, init_val: i8, search_depth: usize, current_depth: usize, parent_value: Option<i8>, game_state: GameState) -> BranchValue {
+    pub fn best_move(master_team: bool, init_val: i8, search_depth: usize, current_depth: usize, parent_value: Option<i8>, game_state: GameState) -> BranchValue {
         use crate::coordinates_from_usize;
         use crate::board::errors;
 
