@@ -6,10 +6,12 @@ use chess::board::BOARD_SIZE;
 use chess::board::errors;
 
 fn main() {
+
+    //let zobrist_bitstrings = chess::gen_zobrist_bitstring();
     
     let player_white = true;
 
-    let search_depth: usize = 3;
+    let search_depth: usize = 4;
 
     // Get starting GameState
     let mut game_state = GameState {
@@ -41,7 +43,7 @@ fn main() {
         whites_turn: true,
     };
 
-    let mut game_over = false;
+    let mut game_over = true;
 
     let mut player_turn = false;
     if player_white {

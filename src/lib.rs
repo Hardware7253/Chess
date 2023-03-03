@@ -1,3 +1,5 @@
+use rand::Rng;
+use std::collections::HashMap;
 pub mod fen;
 pub mod piece;
 pub mod board;
@@ -224,6 +226,117 @@ pub fn replace_in_board(replace: i8, with: i8, mut board: [[i8; BOARD_SIZE[0]]; 
         }
     }
     board
+}
+
+// Generates a random u64 value
+fn gen_rand_u64() -> u64 {
+    rand::thread_rng().gen_range(0..std::u64::MAX)
+}
+
+// Generate bitstrings
+fn gen_zobrist_bitstrings() -> HashMap<i8, u64> {
+    use crate::piece::info::IDS;
+
+    let mut bitstrings = HashMap::new();
+
+    // Piece ids with special states (e.g. king and rook having 0 turns so the king can still castle)
+    // Special states are the piece ids * 10
+    let multi_state_ids = [IDS[0], IDS[1], IDS[5]];
+    
+    // Generate a random u64 value for each piece id and add them to a hashmap
+    for i in 0..IDS.len() {
+        for j in 0..2 { // Use j to get black and white piece id
+            let mut piece_id = IDS[i];
+            if j == 1 {
+                piece_id *= -1;
+            }
+
+            bitstrings.insert(piece_id, gen_rand_u64());
+        }
+    }
+
+    // Generate a random u64 value for pieces with special states
+    for i in 0..multi_state_ids.len() {
+        for j in 0..2 { // Use j to get black and white piece id
+            let mut piece_id = multi_state_ids[i];
+            if j == 1 { 
+                piece_id *= -1;
+            }
+            let piece_id = piece_id * 10; // id for piece with special state is piece_id * 10
+
+            bitstrings.insert(piece_id, gen_rand_u64());
+        }
+    }
+
+    // Add a bitstring for id 0 (no piece)
+    bitstrings.insert(0, gen_rand_u64());
+
+    bitstrings
+}
+
+pub fn gen_bistring_board() -> [[HashMap<i8, u64>; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
+    use gen_zobrist_bitstrings as gzb;
+    [ // Initializing an array without copy is hard
+        [gzb(), gzb(), gzb(), gzb(), gzb(), gzb(), gzb(), gzb()],
+        [gzb(), gzb(), gzb(), gzb(), gzb(), gzb(), gzb(), gzb()],
+        [gzb(), gzb(), gzb(), gzb(), gzb(), gzb(), gzb(), gzb()],
+        [gzb(), gzb(), gzb(), gzb(), gzb(), gzb(), gzb(), gzb()],
+        [gzb(), gzb(), gzb(), gzb(), gzb(), gzb(), gzb(), gzb()],
+        [gzb(), gzb(), gzb(), gzb(), gzb(), gzb(), gzb(), gzb()],
+        [gzb(), gzb(), gzb(), gzb(), gzb(), gzb(), gzb(), gzb()],
+        [gzb(), gzb(), gzb(), gzb(), gzb(), gzb(), gzb(), gzb()],
+    ]
+}
+
+// Generates a zobrist hash given board_info
+// board_info should be from the same perspective as stated in perspective_white
+pub fn gen_zobrist_board_hash(perspective_white: bool, board_info: BoardInfo, bitstrings_board: [[HashMap<i8, u64>; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> u64 {
+    use crate::piece::info::IDS;
+
+    // friendly team is the value a white id has to be multiplied by to get a friendly id
+    let mut friendly_team = 1;
+    if !perspective_white {
+        friendly_team = -1;
+    }
+
+    let mut board_hash: u64 = 0;
+
+    for x in 0..BOARD_SIZE[0] {
+        for y in 0..BOARD_SIZE[1] {
+            let coordinates = coordinates_from_usize([x, y]);
+            let piece_id = get_board(coordinates, board_info.board);
+
+            if piece_id != 0 {
+                let mut piece_id = piece_id;
+
+                // If a rook or a king is found that hasn't moved multiply it's id by 10
+                // To signify that they can still castle
+                if piece_id.abs() == IDS[1] || piece_id.abs() == IDS[5] {
+                    if get_board(coordinates, board_info.turns_board) == 0 {
+                        piece_id * 10;
+                    }
+                }
+
+                // If a friendly pawn is able to en passant this turn multiply it's id by 10
+                // En passant conditions
+                if piece_id == IDS[0] * friendly_team { // piece_id at coordinates is a pawn
+                    if coordinates[1] == 4 { // piece is at y = 4
+                        if {coordinates[0] - board_info.last_turn_coordinates[0]}.abs() == 1 { // The last piece to move is in one of the squares next to the pawn
+                            if get_board(board_info.last_turn_coordinates, board_info.board) == IDS[1] * friendly_team * -1 { // The last piece to move is an enemy pawn
+                                if get_board(board_info.last_turn_coordinates, board_info.turns_board) == 1 { // The enemy pawn has moved once
+                                    piece_id * 10;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            let piece_bitstring = bitstrings_board[x][y].get(&piece_id).copied().unwrap_or(0);
+            board_hash = board_hash ^ piece_bitstring;
+        }
+    }
+    board_hash
 }
 
 #[cfg(test)]
