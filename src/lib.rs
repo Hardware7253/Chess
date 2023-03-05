@@ -274,7 +274,7 @@ fn gen_zobrist_bitstrings() -> HashMap<i8, u64> {
     bitstrings
 }
 
-pub fn gen_bistring_board() -> [[HashMap<i8, u64>; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
+pub fn gen_bistrings_board() -> [[HashMap<i8, u64>; BOARD_SIZE[0]]; BOARD_SIZE[1]] {
     use gen_zobrist_bitstrings as gzb;
     [ // Initializing an array without copy is hard
         [gzb(), gzb(), gzb(), gzb(), gzb(), gzb(), gzb(), gzb()],
@@ -290,7 +290,7 @@ pub fn gen_bistring_board() -> [[HashMap<i8, u64>; BOARD_SIZE[0]]; BOARD_SIZE[1]
 
 // Generates a zobrist hash given board_info
 // board_info should be from the same perspective as stated in perspective_white
-pub fn gen_zobrist_board_hash(perspective_white: bool, board_info: BoardInfo, bitstrings_board: [[HashMap<i8, u64>; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> u64 {
+pub fn gen_zobrist_board_hash(perspective_white: bool, board_info: BoardInfo, bitstrings_board: &[[HashMap<i8, u64>; BOARD_SIZE[0]]; BOARD_SIZE[1]]) -> u64 {
     use crate::piece::info::IDS;
 
     // friendly team is the value a white id has to be multiplied by to get a friendly id
@@ -304,27 +304,31 @@ pub fn gen_zobrist_board_hash(perspective_white: bool, board_info: BoardInfo, bi
     for x in 0..BOARD_SIZE[0] {
         for y in 0..BOARD_SIZE[1] {
             let coordinates = coordinates_from_usize([x, y]);
-            let piece_id = get_board(coordinates, board_info.board);
+            let mut piece_id = get_board(coordinates, board_info.board);
 
             if piece_id != 0 {
-                let mut piece_id = piece_id;
+                
 
                 // If a rook or a king is found that hasn't moved multiply it's id by 10
                 // To signify that they can still castle
                 if piece_id.abs() == IDS[1] || piece_id.abs() == IDS[5] {
                     if get_board(coordinates, board_info.turns_board) == 0 {
-                        piece_id * 10;
+                        piece_id *= 10;
                     }
                 }
 
                 // If a friendly pawn is able to en passant this turn multiply it's id by 10
                 // En passant conditions
-                if piece_id == IDS[0] * friendly_team { // piece_id at coordinates is a pawn
+                if piece_id == IDS[0] * friendly_team { // piece_id at coordinates is a friendly pawn
                     if coordinates[1] == 4 { // piece is at y = 4
-                        if {coordinates[0] - board_info.last_turn_coordinates[0]}.abs() == 1 { // The last piece to move is in one of the squares next to the pawn
-                            if get_board(board_info.last_turn_coordinates, board_info.board) == IDS[1] * friendly_team * -1 { // The last piece to move is an enemy pawn
+                        
+                        let coordinates_delta = coordinates[0] - board_info.last_turn_coordinates[0];
+                        if coordinates_delta.abs() == 1 { // The last piece to move is in one of the squares next to the pawn
+
+                            let enemy_pawn_id = IDS[0] * friendly_team * -1;
+                            if get_board(board_info.last_turn_coordinates, board_info.board) == enemy_pawn_id { // The last piece to move is an enemy pawn
                                 if get_board(board_info.last_turn_coordinates, board_info.turns_board) == 1 { // The enemy pawn has moved once
-                                    piece_id * 10;
+                                    piece_id *= 10;
                                 }
                             }
                         }
@@ -513,5 +517,32 @@ mod tests {
         let result = replace_in_board(1, -1, board);
         let expected = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, -1, 0], [0, -1, 0, -1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, -1, 0, 0, 0], [0, -1, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]];
         assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn zobrist_hash_test() {
+        let board_info1 = BoardInfo { // Board where en passant is not valid, but pawns are in the right position
+            board: fen::decode("rnbqkbnr/ppppp1pp/8/5pP1/8/8/PPPPPP1P/RNBQKBNR"),
+            turns_board: [[0i8; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+            last_turn_coordinates: [0i8; 2],
+            capture_coordinates: None,
+            error_code: 0,
+            pieces: info::Piece::instantiate_all(),
+        };
+
+        let board_info2 = BoardInfo { // Board where en passant is valid, same piece positions as before, just different turns
+            board: fen::decode("rnbqkbnr/ppppp1pp/8/5pP1/8/8/PPPPPP1P/RNBQKBNR"),
+            turns_board: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
+            last_turn_coordinates: [5, 4],
+            capture_coordinates: None,
+            error_code: 0,
+            pieces: info::Piece::instantiate_all(),
+        };
+
+        let bitstrings_board = gen_bistrings_board();
+        let board_hash1 = gen_zobrist_board_hash(true, board_info1, &bitstrings_board);
+        let board_hash2 =  gen_zobrist_board_hash(true, board_info2, &bitstrings_board);
+
+        assert_ne!(board_hash1, board_hash2);
     }
 }

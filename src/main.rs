@@ -6,9 +6,8 @@ use chess::board::BOARD_SIZE;
 use chess::board::errors;
 
 fn main() {
-
-    //let zobrist_bitstrings = chess::gen_zobrist_bitstring();
     
+    println!("{:?}", chess::fen::decode("8/8/8/5P2/8/8/8/8"));
     let player_white = true;
 
     let search_depth: usize = 4;
