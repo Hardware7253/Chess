@@ -1,4 +1,6 @@
 use std::io;
+use std::collections::HashMap;
+
 use chess::board::turn::GameState;
 use chess::board::turn::PointsInfo;
 use chess::piece::moves::BoardInfo;
@@ -6,8 +8,11 @@ use chess::board::BOARD_SIZE;
 use chess::board::errors;
 
 fn main() {
-    
-    println!("{:?}", chess::fen::decode("8/8/8/5P2/8/8/8/8"));
+
+    // Initialize transposition table
+    let mut transposition_table: HashMap<u64, chess::algorithm::minimax::TranspositionInfo> = HashMap::new();
+    let bitstrings_board = chess::gen_bistrings_board();
+
     let player_white = true;
 
     let search_depth: usize = 4;
@@ -42,7 +47,7 @@ fn main() {
         whites_turn: true,
     };
 
-    let mut game_over = true;
+    let mut game_over = false;
 
     let mut player_turn = false;
     if player_white {
@@ -51,6 +56,7 @@ fn main() {
 
     // Continue to make moves untill the game is over
     while !game_over {
+        println!("{}", transposition_table.len());
 
         // Initialize variables
         let mut game_state_new = Ok(game_state);
@@ -86,7 +92,7 @@ fn main() {
     
                 game_state_new = chess::board::turn::new_turn(piece_coordinates, move_coordinates, chess::piece::info::IDS[4], game_state);
             } else {
-                let best_move = chess::algorithm::minimax::best_move(true, 0, search_depth, 0, None, game_state);
+                let best_move = chess::algorithm::minimax::best_move(true, 0, search_depth, 0, None, &bitstrings_board, &mut transposition_table, game_state);
                 game_state_new = chess::board::turn::new_turn(best_move.piece_coordinates, best_move.move_coordinates, chess::piece::info::IDS[4], game_state);
 
                 let piece_ccn = chess::cart_to_ccn(chess::flip_coordinates(best_move.piece_coordinates)).unwrap();
@@ -100,7 +106,7 @@ fn main() {
             match game_state_new {
                 Ok(game_state_unwrapped) => turn_error = false,
                 Err(error) => {
-                    if error.error_code == errors::CHECKMATE_ERROR && error.error_code == errors::STALEMATE_ERROR {
+                    if error.error_code == errors::CHECKMATE_ERROR || error.error_code == errors::STALEMATE_ERROR {
                         let error_message = errors::message(error.error_code);
                         println!("{}", error_message.unwrap());
                         turn_error = false;

@@ -1,5 +1,6 @@
 use rand::Rng;
 use std::collections::HashMap;
+
 pub mod fen;
 pub mod piece;
 pub mod board;

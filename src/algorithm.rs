@@ -1,4 +1,6 @@
 pub mod minimax {
+    use std::collections::HashMap;
+
     use crate::board::turn::new_turn;
     use crate::board::turn::GameState;
     use crate::board::BOARD_SIZE;
@@ -8,6 +10,15 @@ pub mod minimax {
         pub piece_coordinates: [i8; 2],
         pub move_coordinates: [i8; 2],
         pub value: i8,
+    }
+
+    // Struct assigned to board keys in the transposition table
+    #[derive(Debug, Copy, Clone, PartialEq)]
+    pub struct TranspositionInfo {
+        max: BranchValue,
+        min: BranchValue,
+        search_depth: usize,
+        current_depth: usize,
     }
 
     impl BranchValue {
@@ -20,9 +31,19 @@ pub mod minimax {
         }
     }
 
-    pub fn best_move(master_team: bool, init_val: i8, search_depth: usize, current_depth: usize, parent_value: Option<i8>, game_state: GameState) -> BranchValue {
+    pub fn best_move(
+        master_team: bool,
+        init_val: i8,
+        search_depth: usize,
+        current_depth: usize,
+        parent_value: Option<i8>,
+        bitstrings_board: &[[HashMap<i8, u64>; BOARD_SIZE[0]]; BOARD_SIZE[1]],
+        transposition_table: &mut HashMap<u64, TranspositionInfo>,
+        game_state: GameState)
+        -> BranchValue {
         use crate::coordinates_from_usize;
         use crate::board::errors;
+        use crate::gen_zobrist_board_hash;
 
         // Stop searching moves once the last branch is reached
         if current_depth == search_depth {
@@ -31,6 +52,24 @@ pub mod minimax {
                 move_coordinates: [0, 0],
                 value: init_val,
             };
+        }
+
+        let board_hash = gen_zobrist_board_hash(game_state.whites_turn, game_state.board_info, &bitstrings_board);
+        let transposition_value = transposition_table.get(&board_hash).copied();
+
+
+        match transposition_value {
+            Some(transposition_info) => {
+
+                // If this position has allready been searched at the current depth return its results
+                if transposition_info.search_depth >= search_depth && transposition_info.current_depth >= current_depth {
+                    if master_team {
+                        return transposition_info.max;
+                    }
+                    return transposition_info.min
+                }
+            },
+            None => (),
         }
 
         let mut max = BranchValue::new();
@@ -46,7 +85,7 @@ pub mod minimax {
         let mut use_deepening_val = false;
         if current_depth == 0 && search_depth > 1 {
             use_deepening_val = true;
-            deepening_val = best_move(master_team, init_val, search_depth - 1, current_depth, parent_value, game_state);
+            deepening_val = best_move(master_team, init_val, search_depth - 1, current_depth, parent_value, bitstrings_board, transposition_table, game_state);
 
             let mut valid_move = true;
             let game_state_new = new_turn(deepening_val.piece_coordinates, deepening_val.move_coordinates, crate::piece::info::IDS[4], game_state); // The ai will only try to promote pawns to queens
@@ -62,7 +101,7 @@ pub mod minimax {
             };
 
             if valid_move {
-                let child_min_max = best_move(!master_team, move_val, search_depth, current_depth + 1, min_max_val, game_state_new.unwrap());
+                let child_min_max = best_move(!master_team, move_val, search_depth, current_depth + 1, min_max_val, bitstrings_board, transposition_table, game_state_new.unwrap());
                 max = BranchValue {
                     piece_coordinates: deepening_val.piece_coordinates,
                     move_coordinates: deepening_val.move_coordinates,
@@ -149,8 +188,8 @@ pub mod minimax {
 
                         let branch_val = init_val + move_val;
 
-                        if !move_error { // Do not check child branches inscase of a move error
-                            let child_min_max = best_move(!master_team, branch_val, search_depth, current_depth + 1, min_max_val, game_state_new.unwrap()); // Get min/max value of child branch
+                        if !move_error { // Do not check child branches inscase of a move errorpoints_delta: i8,
+                            let child_min_max = best_move(!master_team, branch_val, search_depth, current_depth + 1, min_max_val, bitstrings_board, transposition_table, game_state_new.unwrap()); // Get min/max value of child branch
                             
                             // Update min and max with child value
                             if init_min_max { // Initialize max and min value
@@ -209,6 +248,14 @@ pub mod minimax {
             }
         }
 
+        // Add board to transposition table
+        transposition_table.insert(board_hash, TranspositionInfo {
+            max: max,
+            min: min,
+            search_depth: search_depth,
+            current_depth: current_depth,
+        });
+
         if master_team { // Return max values for master team
             return max;
         }
@@ -256,7 +303,10 @@ pub mod minimax {
                 whites_turn: true,
             };
 
-            assert_eq!(best_move(true, 0, 3, 0, None, game_state).move_coordinates, [7, 1]);
+            let mut transposition_table: HashMap<u64, TranspositionInfo> = HashMap::new();
+            let bitstrings_board = crate::gen_bistrings_board();
+
+            assert_eq!(best_move(true, 0, 3, 0, None, &bitstrings_board, &mut transposition_table, game_state).move_coordinates, [7, 1]);
         }
 
         #[test]
@@ -290,7 +340,10 @@ pub mod minimax {
                 whites_turn: true,
             };
 
-            assert_eq!(best_move(true, 0, 3, 0, None, game_state).move_coordinates, [3, 3]);
+            let mut transposition_table: HashMap<u64, TranspositionInfo> = HashMap::new();
+            let bitstrings_board = crate::gen_bistrings_board();
+
+            assert_eq!(best_move(true, 0, 3, 0, None, &bitstrings_board, &mut transposition_table, game_state).move_coordinates, [3, 3]);
         }
 
         #[test]
@@ -324,7 +377,10 @@ pub mod minimax {
                 whites_turn: true,
             };
 
-            assert_eq!(best_move(true, 0, 3, 0, None, game_state).move_coordinates, [1, 6]);
+            let mut transposition_table: HashMap<u64, TranspositionInfo> = HashMap::new();
+            let bitstrings_board = crate::gen_bistrings_board();
+
+            assert_eq!(best_move(true, 0, 3, 0, None, &bitstrings_board, &mut transposition_table, game_state).move_coordinates, [1, 6]);
         }
     }
 }
