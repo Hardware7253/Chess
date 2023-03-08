@@ -37,6 +37,7 @@ pub mod minimax {
         search_depth: usize,
         current_depth: usize,
         parent_value: Option<i8>,
+        moves: Option<Vec<BranchValue>>,
         bitstrings_board: &[[HashMap<i8, u64>; BOARD_SIZE[0]]; BOARD_SIZE[1]],
         transposition_table: &mut HashMap<u64, TranspositionInfo>,
         game_state: GameState)
@@ -263,6 +264,76 @@ pub mod minimax {
         min
     }
 
+    // Orders possible moves for a GameState into a vec
+    fn order_moves(game_state: GameState) -> Vec<BranchValue> {
+        use crate::get_board;
+        use crate::coordinates_from_usize;
+        use crate::board::errors;
+        use crate::piece::moves;
+
+        let mut moves: Vec<BranchValue> = Vec::new();
+        
+        
+        for x_piece in 0..BOARD_SIZE[0] {
+            for y_piece in 0..BOARD_SIZE[1] {
+                let mut piece_coordinates = coordinates_from_usize([x_piece, y_piece]);
+                let piece_id = get_board(piece_coordinates, game_state.board_info.board);
+
+                // Don't get moves for pieces from the wrong team
+                if game_state.whites_turn && piece_id < 0 {
+                    continue;
+                } else if !game_state.whites_turn && piece_id > 0 {
+                    continue;
+                }
+
+                // Get the value of the piece at piece_coordinates
+                let mut piece_value = 0;
+                if piece_id != 0 {
+                    piece_value = game_state.board_info.pieces[usize::try_from(piece_id.abs() - 1).unwrap()].value;
+                }                
+
+                for x_move in 0..BOARD_SIZE[0] {
+                    for y_move in 0..BOARD_SIZE[1] {
+                        let mut move_coordinates = coordinates_from_usize([x_move, y_move]);
+                        let move_id = get_board(move_coordinates, game_state.board_info.board);
+
+                        // Get the value of the piece at move_coordinates
+                        let mut move_value = 0;
+                        if move_id != 0 {
+                            move_value = game_state.board_info.pieces[usize::try_from(move_id.abs() - 1).unwrap()].value;
+                        }
+
+                        let move_board = moves::gen_move_board(piece_coordinates, move_coordinates, crate::piece::info::IDS[4], game_state.board_info);
+                        if move_board.board != game_state.board_info.board { // If the move board is different to the initial board then the move is valid
+                            let enemy_moves_board = moves::gen_enemy_moves(game_state.whites_turn, move_board);
+                            let moves_board = moves::gen_all_moves(game_state.whites_turn, None, move_board);
+
+                            let mut move_points_change = move_value;
+
+                            let mut enemy_capture_value: i8 = 0;
+
+                            // Assume the enemy will try to trade if the square is not defended
+                            if get_board(move_coordinates, enemy_moves_board) == 1 && get_board(move_coordinates, moves_board) == 0 {
+                                enemy_capture_value -= piece_value;
+                            }
+
+                            // Add move to moves vec
+                            moves.push(BranchValue {
+                                piece_coordinates: piece_coordinates,
+                                move_coordinates: move_coordinates,
+                                value: move_points_change,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sort moves and return
+        moves.sort_by(|a, b| b.value.cmp(&a.value));
+        moves
+    }
+
 
 
     #[cfg(test)]
@@ -381,6 +452,85 @@ pub mod minimax {
             let bitstrings_board = crate::gen_bistrings_board();
 
             assert_eq!(best_move(true, 0, 3, 0, None, &bitstrings_board, &mut transposition_table, game_state).move_coordinates, [1, 6]);
+        }
+
+        // 0.60s seconds before (release) [3, 0] to [0, 3] value 3
+        #[test]
+        fn best_move_test4() {
+            let game_state = GameState {
+                white_points_info: PointsInfo {
+                    captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
+                    captured_pieces_no: 0,
+                    points_total: 0,
+                    points_delta: 0,
+                },
+
+                black_points_info: PointsInfo {
+                    captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
+                    captured_pieces_no: 0,
+                    points_total: 0,
+                    points_delta: 0,
+                },
+
+                points_delta: 0,
+
+                board_info: BoardInfo {
+                    board: fen::decode("rnbqkb1r/ppp1pp1p/5np1/3p4/2PP1B2/2N5/PP2PPPP/R2QKBNR"),
+                    turns_board: [[1i8; BOARD_SIZE[0]]; BOARD_SIZE[0]],
+                    last_turn_coordinates: [0, 0],
+                    capture_coordinates: None,
+                    error_code: 0,
+                    pieces: crate::piece::info::Piece::instantiate_all(),
+                },
+
+                whites_turn: true,
+            };
+
+            let mut transposition_table: HashMap<u64, TranspositionInfo> = HashMap::new();
+            let bitstrings_board = crate::gen_bistrings_board();
+
+            assert_eq!(best_move(true, 0, 3, 0, None, &bitstrings_board, &mut transposition_table, game_state), BranchValue::new());
+        }
+
+        #[test]
+        fn order_moves_test() {
+            let game_state = GameState {
+                white_points_info: PointsInfo {
+                    captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
+                    captured_pieces_no: 0,
+                    points_total: 0,
+                    points_delta: 0,
+                },
+
+                black_points_info: PointsInfo {
+                    captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
+                    captured_pieces_no: 0,
+                    points_total: 0,
+                    points_delta: 0,
+                },
+
+                points_delta: 0,
+
+                board_info: BoardInfo {
+                    board: fen::decode("2n5/7n/8/6R1/8/8/8/2Q3R1"),
+                    turns_board: [[1i8; BOARD_SIZE[0]]; BOARD_SIZE[0]],
+                    last_turn_coordinates: [0, 0],
+                    capture_coordinates: None,
+                    error_code: 0,
+                    pieces: crate::piece::info::Piece::instantiate_all(),
+                },
+
+                whites_turn: true,
+            };
+
+            let result = order_moves(game_state);
+            let best_move = BranchValue {
+                piece_coordinates: [2, 0],
+                move_coordinates: [2, 7],
+                value: 3,
+            };
+
+            assert_eq!(result[0], best_move);
         }
     }
 }

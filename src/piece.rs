@@ -525,7 +525,7 @@ pub mod moves {
     }
 
     // Generates all possible moves for a type of piece (white or black)
-    fn gen_all_moves(
+    pub fn gen_all_moves(
     gen_all_white: bool, // When true generates all white moves, generates black mvoes when false
     ignore_id: Option<i8>,
     board_info: BoardInfo)
@@ -548,7 +548,7 @@ pub mod moves {
 
     // Generates all moves of the enemy team
     // Flip boards to enemy perspective to fix the problem where enemy pawns move backwards
-    fn gen_enemy_moves(
+    pub fn gen_enemy_moves(
     caller_white: bool,
     board_info: BoardInfo)
     -> [[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]] {        
