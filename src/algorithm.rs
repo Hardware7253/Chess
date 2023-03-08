@@ -37,7 +37,6 @@ pub mod minimax {
         search_depth: usize,
         current_depth: usize,
         parent_value: Option<i8>,
-        moves: Option<Vec<BranchValue>>,
         bitstrings_board: &[[HashMap<i8, u64>; BOARD_SIZE[0]]; BOARD_SIZE[1]],
         transposition_table: &mut HashMap<u64, TranspositionInfo>,
         game_state: GameState)
@@ -55,9 +54,11 @@ pub mod minimax {
             };
         }
 
+        // Generate moves
+        let mut moves = order_moves(game_state);
+
         let board_hash = gen_zobrist_board_hash(game_state.whites_turn, game_state.board_info, &bitstrings_board);
         let transposition_value = transposition_table.get(&board_hash).copied();
-
 
         match transposition_value {
             Some(transposition_info) => {
@@ -80,53 +81,16 @@ pub mod minimax {
 
         let mut min_max_val: Option<i8> = None;
 
-        
-        // Initialize max and min value with best move using search depth - 1 (iterative deepening)
+        // Use best move from lower level search as the first move to search at this depth
         let mut deepening_val = max;
         let mut use_deepening_val = false;
         if current_depth == 0 && search_depth > 1 {
-            use_deepening_val = true;
             deepening_val = best_move(master_team, init_val, search_depth - 1, current_depth, parent_value, bitstrings_board, transposition_table, game_state);
-
-            let mut valid_move = true;
-            let game_state_new = new_turn(deepening_val.piece_coordinates, deepening_val.move_coordinates, crate::piece::info::IDS[4], game_state); // The ai will only try to promote pawns to queens
-            let move_val = match game_state_new {
-                Ok(game_state) => game_state.points_delta,
-                Err(error) => {
-                    if error.error_code != errors::CHECKMATE_ERROR || error.error_code != errors::STALEMATE_ERROR {
-                        valid_move = false;
-                    }
-
-                    error.value
-                },
-            };
-
-            if valid_move {
-                let child_min_max = best_move(!master_team, move_val, search_depth, current_depth + 1, min_max_val, bitstrings_board, transposition_table, game_state_new.unwrap());
-                max = BranchValue {
-                    piece_coordinates: deepening_val.piece_coordinates,
-                    move_coordinates: deepening_val.move_coordinates,
-                    value: child_min_max.value,
-                };
-
-                min = BranchValue {
-                    piece_coordinates: deepening_val.piece_coordinates,
-                    move_coordinates: deepening_val.move_coordinates,
-                    value: child_min_max.value,
-                };
-
-                if master_team {
-                    min_max_val = Some(max.value);
-                } else {
-                    min_max_val = Some(min.value);
-                }
-
-                init_min_max = false;
-            }
+            use_deepening_val = true;
         }
+        moves.rotate_right(1);
+        moves[0] = Some(deepening_val);
 
-        
-        
         // Unwrap parent value
         let mut use_parent_value = false;
         let parent_value = match parent_value {
@@ -134,116 +98,106 @@ pub mod minimax {
             None => 0,
         };
 
-        'master: for x_piece in 0..BOARD_SIZE[0] {
-            for y_piece in 0..BOARD_SIZE[1] {
-                let mut piece_coordinates = coordinates_from_usize([x_piece, y_piece]);
+        for i in 0..moves.len() {
+            let move_info = match moves[i] {
+                Some(move_info) => move_info,
+                None => break,
+            };
 
-                for x_move in 0..BOARD_SIZE[0] {
-                    for y_move in 0..BOARD_SIZE[1] {
-                        let mut move_coordinates = coordinates_from_usize([x_move, y_move]);
-                        
-                        // Skip piece and move coordinates that are the same as the deepening value
-                        // Because deepening value initialized min and max itt does not need to be run again
-                        if use_deepening_val {
-                            if piece_coordinates == deepening_val.piece_coordinates && move_coordinates == deepening_val.move_coordinates {
-                                break;
-                            }
-                        }
+            let piece_coordinates = move_info.piece_coordinates;
+            let move_coordinates = move_info.move_coordinates;
 
-                        let mut move_error = false;
-                        let mut valid_move = true;
+            let mut move_error = false;
+            let mut valid_move = true;
 
-                        // Get the material value of moving from piece_coordinates to move_coordinates
-                        let game_state_new = new_turn(piece_coordinates, move_coordinates, crate::piece::info::IDS[4], game_state); // The ai will only try to promote pawns to queens
-                        let mut move_val = match game_state_new {
-                            Ok(game_state) => game_state.points_delta,
-                            Err(error) => {
-                                move_error = true;
+            // Get the material value of moving from piece_coordinates to move_coordinates
+            let game_state_new = new_turn(piece_coordinates, move_coordinates, crate::piece::info::IDS[4], game_state); // The ai will only try to promote pawns to queens
+            let mut move_val = match game_state_new {
+                Ok(game_state) => game_state.points_delta,
+                Err(error) => {
+                    move_error = true;
 
-                                // If the error was not a checkmate, or stalemate then the error was related to an invalid move
-                                if error.error_code != errors::CHECKMATE_ERROR && error.error_code != errors::STALEMATE_ERROR {
-                                    valid_move = false;
-                                } else { // If the error was a checkmate or stalemate return error.value
-                                    let mut error_val = error.value;
+                    // If the error was not a checkmate, or stalemate then the error was related to an invalid move
+                    if error.error_code != errors::CHECKMATE_ERROR && error.error_code != errors::STALEMATE_ERROR {
+                        valid_move = false;
+                    } else { // If the error was a checkmate or stalemate return error.value
+                        let mut error_val = error.value;
 
-                                    if !master_team {
-                                        error_val *= -1;
-                                    }
-                                    
-                                    return BranchValue {
-                                        piece_coordinates: piece_coordinates,
-                                        move_coordinates: move_coordinates,
-                                        value: error_val,
-                                    };
-                                }
-                                
-
-                                error.value
-                            },
-                        };
-
-                        // If the current branch is not the master team then it's move values are negative (because they negatively impact the master team)
                         if !master_team {
-                            move_val *= -1
+                            error_val *= -1;
                         }
+                        
+                        return BranchValue {
+                            piece_coordinates: piece_coordinates,
+                            move_coordinates: move_coordinates,
+                            value: error_val,
+                        };
+                    }
+                    
 
-                        let branch_val = init_val + move_val;
+                    error.value
+                },
+            };
 
-                        if !move_error { // Do not check child branches inscase of a move errorpoints_delta: i8,
-                            let child_min_max = best_move(!master_team, branch_val, search_depth, current_depth + 1, min_max_val, bitstrings_board, transposition_table, game_state_new.unwrap()); // Get min/max value of child branch
-                            
-                            // Update min and max with child value
-                            if init_min_max { // Initialize max and min value
-                                max = BranchValue {
-                                    piece_coordinates: piece_coordinates,
-                                    move_coordinates: move_coordinates,
-                                    value: child_min_max.value,
-                                };
+            // If the current branch is not the master team then it's move values are negative (because they negatively impact the master team)
+            if !master_team {
+                move_val *= -1
+            }
 
-                                min = BranchValue {
-                                    piece_coordinates: piece_coordinates,
-                                    move_coordinates: move_coordinates,
-                                    value: child_min_max.value,
-                                };
+            let branch_val = init_val + move_val;
 
-                                if master_team {
-                                    min_max_val = Some(max.value);
-                                } else {
-                                    min_max_val = Some(min.value);
-                                }
+            if !move_error { // Do not check child branches inscase of a move errorpoints_delta: i8,
+                let child_min_max = best_move(!master_team, branch_val, search_depth, current_depth + 1, min_max_val, bitstrings_board, transposition_table, game_state_new.unwrap()); // Get min/max value of child branch
+                
+                // Update min and max with child value
+                if init_min_max { // Initialize max and min value
+                    max = BranchValue {
+                        piece_coordinates: piece_coordinates,
+                        move_coordinates: move_coordinates,
+                        value: child_min_max.value,
+                    };
 
-                                init_min_max = false;
-                            } else if child_min_max.value > max.value { // Update max value
-                                max = BranchValue {
-                                    piece_coordinates: piece_coordinates,
-                                    move_coordinates: move_coordinates,
-                                    value: child_min_max.value,
-                                };
-                                if master_team {
-                                    min_max_val = Some(max.value);
-                                }
-                            } else if child_min_max.value < min.value  { // Update min value
-                                min = BranchValue {
-                                    piece_coordinates: piece_coordinates,
-                                    move_coordinates: move_coordinates,
-                                    value: child_min_max.value,
-                                };
-                                if !master_team {
-                                    min_max_val = Some(min.value);
-                                }
-                            }
+                    min = BranchValue {
+                        piece_coordinates: piece_coordinates,
+                        move_coordinates: move_coordinates,
+                        value: child_min_max.value,
+                    };
 
-                            // Alpha beta pruning
-                            if use_parent_value {
-                                if master_team {
-                                    if max.value > parent_value {
-                                        break 'master;
-                                    }
-                                } else if min.value < parent_value {
-                                    break 'master;
-                                }
-                            }
+                    if master_team {
+                        min_max_val = Some(max.value);
+                    } else {
+                        min_max_val = Some(min.value);
+                    }
+
+                    init_min_max = false;
+                } else if child_min_max.value > max.value { // Update max value
+                    max = BranchValue {
+                        piece_coordinates: piece_coordinates,
+                        move_coordinates: move_coordinates,
+                        value: child_min_max.value,
+                    };
+                    if master_team {
+                        min_max_val = Some(max.value);
+                    }
+                } else if child_min_max.value < min.value  { // Update min value
+                    min = BranchValue {
+                        piece_coordinates: piece_coordinates,
+                        move_coordinates: move_coordinates,
+                        value: child_min_max.value,
+                    };
+                    if !master_team {
+                        min_max_val = Some(min.value);
+                    }
+                }
+
+                // Alpha beta pruning
+                if use_parent_value {
+                    if master_team {
+                        if max.value > parent_value {
+                            break;
                         }
+                    } else if min.value < parent_value {
+                        break;
                     }
                 }
             }
@@ -265,12 +219,13 @@ pub mod minimax {
     }
 
     // Orders possible moves for a GameState into a vec
-    fn order_moves(game_state: GameState) -> Vec<BranchValue> {
+    fn order_moves(game_state: GameState) -> [Option<BranchValue>; {BOARD_SIZE[0] * BOARD_SIZE[1]}.pow(2)] {
         use crate::get_board;
         use crate::coordinates_from_usize;
         use crate::board::errors;
         use crate::piece::moves;
 
+        let mut moves_array: [Option<BranchValue>; {BOARD_SIZE[0] * BOARD_SIZE[1]}.pow(2)] = [None; {BOARD_SIZE[0] * BOARD_SIZE[1]}.pow(2)];
         let mut moves: Vec<BranchValue> = Vec::new();
         
         
@@ -310,11 +265,13 @@ pub mod minimax {
 
                             let mut move_points_change = move_value;
 
-                            let mut enemy_capture_value: i8 = 0;
-
                             // Assume the enemy will try to trade if the square is not defended
                             if get_board(move_coordinates, enemy_moves_board) == 1 && get_board(move_coordinates, moves_board) == 0 {
-                                enemy_capture_value -= piece_value;
+                                move_points_change -= piece_value;
+                            }
+
+                            if piece_coordinates == [1, 0] && move_coordinates == [1, 6] {
+                                //println!("{}", move_points_change);
                             }
 
                             // Add move to moves vec
@@ -331,7 +288,12 @@ pub mod minimax {
 
         // Sort moves and return
         moves.sort_by(|a, b| b.value.cmp(&a.value));
-        moves
+        
+        // Add moves vec to moves array
+        for i in 0..moves.len() {
+            moves_array[i] = Some(moves[i]);
+        }
+        moves_array
     }
 
 
@@ -454,44 +416,6 @@ pub mod minimax {
             assert_eq!(best_move(true, 0, 3, 0, None, &bitstrings_board, &mut transposition_table, game_state).move_coordinates, [1, 6]);
         }
 
-        // 0.60s seconds before (release) [3, 0] to [0, 3] value 3
-        #[test]
-        fn best_move_test4() {
-            let game_state = GameState {
-                white_points_info: PointsInfo {
-                    captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
-                    captured_pieces_no: 0,
-                    points_total: 0,
-                    points_delta: 0,
-                },
-
-                black_points_info: PointsInfo {
-                    captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
-                    captured_pieces_no: 0,
-                    points_total: 0,
-                    points_delta: 0,
-                },
-
-                points_delta: 0,
-
-                board_info: BoardInfo {
-                    board: fen::decode("rnbqkb1r/ppp1pp1p/5np1/3p4/2PP1B2/2N5/PP2PPPP/R2QKBNR"),
-                    turns_board: [[1i8; BOARD_SIZE[0]]; BOARD_SIZE[0]],
-                    last_turn_coordinates: [0, 0],
-                    capture_coordinates: None,
-                    error_code: 0,
-                    pieces: crate::piece::info::Piece::instantiate_all(),
-                },
-
-                whites_turn: true,
-            };
-
-            let mut transposition_table: HashMap<u64, TranspositionInfo> = HashMap::new();
-            let bitstrings_board = crate::gen_bistrings_board();
-
-            assert_eq!(best_move(true, 0, 3, 0, None, &bitstrings_board, &mut transposition_table, game_state), BranchValue::new());
-        }
-
         #[test]
         fn order_moves_test() {
             let game_state = GameState {
@@ -530,7 +454,7 @@ pub mod minimax {
                 value: 3,
             };
 
-            assert_eq!(result[0], best_move);
+            assert_eq!(result[0], Some(best_move));
         }
     }
 }
