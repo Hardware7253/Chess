@@ -13,7 +13,7 @@ fn main() {
     let mut transposition_table: HashMap<u64, chess::algorithm::minimax::TranspositionInfo> = HashMap::new();
     let bitstrings_board = chess::gen_bistrings_board();
 
-    let player_white = true;
+    let player_white = false;
 
     let search_depth: usize = 4;
 
@@ -99,6 +99,7 @@ fn main() {
                 let move_ccn = chess::cart_to_ccn(chess::flip_coordinates(best_move.move_coordinates)).unwrap();
 
                 println!("{} to {}", piece_ccn, move_ccn);
+                println!("{:?}", best_move);
                 println!("");
             }
             

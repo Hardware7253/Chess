@@ -1,4 +1,59 @@
+use crate::board::BOARD_SIZE;
+
+// Z index corresponds to IDS index
+pub const PIECE_HEATMAPS: [[[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]; 4] = [
+    // Piece heatmaps appear rotated 90 degrees clockwise in the board arrays
+    // Pawn heatmap
+    [
+        [0, 9, 1, 1, 0, 0, 0, 0],
+        [0, 9, 1, 1, 0, 0, 0, 0],
+        [0, 1, 2, 4, 0, 0, 0, 0],
+        [0, 0, 0, 6, 1, 0, 0, 0],
+        [0, 1, 2, 4, 1, 0, 0, 0],
+        [0, 7, 1, 1, 0, 0, 0, 0],
+        [0, 9, 3, 0, 0, 0, 0, 0],
+        [0, 9, 1, 2, 0, 0, 0, 0],
+    ],
+
+    // Rook heatmap
+    [
+        [0, 2, 2, 2, 2, 0, 0, 0],
+        [2, 3, 3, 3, 3, 0, 0, 0],
+        [3, 1, 1, 1, 1, 0, 0, 0],
+        [4, 1, 1, 1, 1, 0, 0, 0],
+        [4, 1, 1, 1, 1, 0, 0, 0],
+        [3, 1, 1, 1, 1, 0, 0, 0],
+        [2, 3, 3, 3, 3, 0, 0, 0],
+        [0, 2, 2, 2, 2, 0, 0, 0],
+    ],
+
+    // Knight heatmap
+    [
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 1, 0, 1, 0, 0, 0],
+        [0, 1, 1, 1, 5, 2, 0, 0],
+        [0, 0, 4, 5, 4, 1, 0, 0],
+        [0, 2, 4, 4, 4, 0, 0, 0],
+        [0, 1, 4, 4, 5, 1, 0, 0],
+        [0, 0, 4, 2, 1, 0, 0, 0],
+        [0, 0, 0, 2, 1, 0, 0, 0],
+    ],
+    
+    // Bishop heatmap
+    [
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 2, 1, 1, 1, 0, 0],
+        [1, 4, 4, 3, 2, 1, 0, 0],
+        [1, 3, 4, 2, 4, 0, 0, 0],
+        [1, 4, 4, 2, 1, 1, 1, 0],
+        [4, 2, 4, 1, 1, 0, 0, 0],
+        [0, 0, 2, 2, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+];
+
 pub mod minimax {
+    use super::*;
     use std::collections::HashMap;
 
     use crate::board::turn::new_turn;
@@ -10,6 +65,7 @@ pub mod minimax {
         pub piece_coordinates: [i8; 2],
         pub move_coordinates: [i8; 2],
         pub value: i8,
+        pub heatmap_value: i8,
     }
 
     // Struct assigned to board keys in the transposition table
@@ -22,11 +78,12 @@ pub mod minimax {
     }
 
     impl BranchValue {
-        fn new() -> Self {
+        pub fn new() -> Self {
             BranchValue {
                 piece_coordinates: [0, 0],
                 move_coordinates: [0, 0],
                 value: 0,
+                heatmap_value: 0,
             }
         }
     }
@@ -42,6 +99,8 @@ pub mod minimax {
         game_state: GameState)
         -> BranchValue {
         use crate::coordinates_from_usize;
+        use crate::get_board;
+        use crate::piece::info::IDS;
         use crate::board::errors;
         use crate::gen_zobrist_board_hash;
 
@@ -51,6 +110,7 @@ pub mod minimax {
                 piece_coordinates: [0, 0],
                 move_coordinates: [0, 0],
                 value: init_val,
+                heatmap_value: 0,
             };
         }
 
@@ -131,6 +191,7 @@ pub mod minimax {
                             piece_coordinates: piece_coordinates,
                             move_coordinates: move_coordinates,
                             value: error_val,
+                            heatmap_value: 0,
                         };
                     }
                     
@@ -146,6 +207,12 @@ pub mod minimax {
 
             let branch_val = init_val + move_val;
 
+            let piece_id = get_board(piece_coordinates, game_state.board_info.board).abs();
+            let mut heatmap_val: i8 = 0;
+            if piece_id == IDS[0] || piece_id == IDS[1] || piece_id == IDS[2] || piece_id == IDS[3] {
+                heatmap_val = crate::get_board(move_coordinates, PIECE_HEATMAPS[usize::try_from(piece_id - 1).unwrap()]);
+            }
+
             if !move_error { // Do not check child branches inscase of a move errorpoints_delta: i8,
                 let child_min_max = best_move(!master_team, branch_val, search_depth, current_depth + 1, min_max_val, bitstrings_board, transposition_table, game_state_new.unwrap()); // Get min/max value of child branch
                 
@@ -155,12 +222,14 @@ pub mod minimax {
                         piece_coordinates: piece_coordinates,
                         move_coordinates: move_coordinates,
                         value: child_min_max.value,
+                        heatmap_value: heatmap_val,
                     };
 
                     min = BranchValue {
                         piece_coordinates: piece_coordinates,
                         move_coordinates: move_coordinates,
                         value: child_min_max.value,
+                        heatmap_value: heatmap_val,
                     };
 
                     if master_team {
@@ -170,20 +239,22 @@ pub mod minimax {
                     }
 
                     init_min_max = false;
-                } else if child_min_max.value > max.value { // Update max value
+                } else if child_min_max.value > max.value || {child_min_max.value == max.value && heatmap_val > max.heatmap_value} { // Update max value
                     max = BranchValue {
                         piece_coordinates: piece_coordinates,
                         move_coordinates: move_coordinates,
                         value: child_min_max.value,
+                        heatmap_value: heatmap_val,
                     };
                     if master_team {
                         min_max_val = Some(max.value);
                     }
-                } else if child_min_max.value < min.value  { // Update min value
+                } else if child_min_max.value < min.value || {child_min_max.value == min.value && heatmap_val < min.heatmap_value} { // Update min value
                     min = BranchValue {
                         piece_coordinates: piece_coordinates,
                         move_coordinates: move_coordinates,
                         value: child_min_max.value,
+                        heatmap_value: heatmap_val,
                     };
                     if !master_team {
                         min_max_val = Some(min.value);
@@ -279,6 +350,7 @@ pub mod minimax {
                                 piece_coordinates: piece_coordinates,
                                 move_coordinates: move_coordinates,
                                 value: move_points_change,
+                                heatmap_value: 0,
                             });
                         }
                     }
@@ -452,6 +524,7 @@ pub mod minimax {
                 piece_coordinates: [2, 0],
                 move_coordinates: [2, 7],
                 value: 3,
+                heatmap_value: 0,
             };
 
             assert_eq!(result[0], Some(best_move));
