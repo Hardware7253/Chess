@@ -13,7 +13,7 @@ fn main() {
     let mut transposition_table: HashMap<u64, chess::algorithm::minimax::TranspositionInfo> = HashMap::new();
     let bitstrings_board = chess::gen_bistrings_board();
 
-    let player_white = false;
+    let player_white = true;
 
     let search_depth: usize = 4;
 
@@ -22,14 +22,14 @@ fn main() {
         white_points_info: PointsInfo {
             captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
             captured_pieces_no: 0,
-            points_total: 11,
+            points_total: 0,
             points_delta: 0,
         },
 
         black_points_info: PointsInfo {
             captured_pieces: [0i8; BOARD_SIZE[0] * {BOARD_SIZE[1] / 2}],
             captured_pieces_no: 0,
-            points_total: 15,
+            points_total: 0,
             points_delta: 0,
         },
 

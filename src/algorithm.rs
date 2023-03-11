@@ -1,55 +1,94 @@
 use crate::board::BOARD_SIZE;
+use crate::piece::info::IDS;
 
 // Z index corresponds to IDS index
-pub const PIECE_HEATMAPS: [[[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]; 4] = [
+// Heatmaps should only be used in the early stages of the game
+pub const PIECE_HEATMAPS: [[[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]; IDS.len()] = [
     // Piece heatmaps appear rotated 90 degrees clockwise in the board arrays
     // Pawn heatmap
     [
-        [0, 9, 1, 1, 0, 0, 0, 0],
-        [0, 9, 1, 1, 0, 0, 0, 0],
-        [0, 1, 2, 4, 0, 0, 0, 0],
-        [0, 0, 0, 6, 1, 0, 0, 0],
-        [0, 1, 2, 4, 1, 0, 0, 0],
-        [0, 7, 1, 1, 0, 0, 0, 0],
-        [0, 9, 3, 0, 0, 0, 0, 0],
-        [0, 9, 1, 2, 0, 0, 0, 0],
+        [0, 7, 0, 0, 0, 0, 0, 0],
+        [0, 7, 0, 0, 0, 0, 0, 0],
+        [0, 7, 3, 1, 0, 0, 0, 0],
+        [0, 0, 1, 4, 1, 0, 0, 0],
+        [0, 0, 1, 4, 1, 0, 0, 0],
+        [0, 7, 3, 1, 0, 0, 0, 0],
+        [0, 7, 0, 0, 0, 0, 0, 0],
+        [0, 7, 0, 0, 0, 0, 0, 0],
     ],
 
     // Rook heatmap
     [
-        [0, 2, 2, 2, 2, 0, 0, 0],
-        [2, 3, 3, 3, 3, 0, 0, 0],
-        [3, 1, 1, 1, 1, 0, 0, 0],
-        [4, 1, 1, 1, 1, 0, 0, 0],
-        [4, 1, 1, 1, 1, 0, 0, 0],
-        [3, 1, 1, 1, 1, 0, 0, 0],
-        [2, 3, 3, 3, 3, 0, 0, 0],
-        [0, 2, 2, 2, 2, 0, 0, 0],
+        [0, 0, 3, 3, 3, 0, 0, 0],
+        [0, 0, 1, 1, 1, 0, 0, 0],
+        [1, 0, 1, 1, 1, 0, 0, 0],
+        [1, 0, 1, 1, 1, 0, 0, 0],
+        [1, 0, 1, 1, 1, 0, 0, 0],
+        [1, 0, 1, 1, 1, 0, 0, 0],
+        [0, 0, 1, 1, 1, 0, 0, 0],
+        [0, 0, 3, 3, 3, 0, 0, 0],
     ],
 
     // Knight heatmap
     [
         [0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 1, 0, 1, 0, 0, 0],
-        [0, 1, 1, 1, 5, 2, 0, 0],
-        [0, 0, 4, 5, 4, 1, 0, 0],
-        [0, 2, 4, 4, 4, 0, 0, 0],
-        [0, 1, 4, 4, 5, 1, 0, 0],
-        [0, 0, 4, 2, 1, 0, 0, 0],
-        [0, 0, 0, 2, 1, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 4, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 4, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
     ],
-    
+
     // Bishop heatmap
     [
+        [0, 0, 1, 1, 1, 0, 0, 0],
+        [0, 0, 1, 1, 1, 0, 0, 0],
+        [0, 0, 1, 1, 1, 0, 0, 0],
+        [0, 0, 1, 1, 1, 0, 0, 0],
+        [0, 0, 1, 1, 1, 0, 0, 0],
+        [0, 0, 1, 1, 1, 0, 0, 0],
+        [0, 0, 1, 1, 1, 0, 0, 0],
+        [0, 0, 1, 1, 1, 0, 0, 0],
+    ],
+
+    // Queen heatmap
+    [
+        [0, 1, 1, 1, 1, 0, 0, 0],
+        [0, 1, 1, 1, 1, 0, 0, 0],
+        [0, 1, 1, 1, 1, 0, 0, 0],
+        [0, 1, 1, 1, 1, 0, 0, 0],
+        [0, 1, 1, 1, 1, 0, 0, 0],
+        [0, 1, 1, 1, 1, 0, 0, 0],
+        [0, 1, 1, 1, 1, 0, 0, 0],
+        [0, 1, 1, 1, 1, 0, 0, 0],
+    ],
+
+    // King heatmap
+    [
+        [4, 0, 0, 0, 0, 0, 0, 0],
+        [4, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 2, 1, 1, 1, 0, 0],
-        [1, 4, 4, 3, 2, 1, 0, 0],
-        [1, 3, 4, 2, 4, 0, 0, 0],
-        [1, 4, 4, 2, 1, 1, 1, 0],
-        [4, 2, 4, 1, 1, 0, 0, 0],
-        [0, 0, 2, 2, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [4, 0, 0, 0, 0, 0, 0, 0],
+        [4, 0, 0, 0, 0, 0, 0, 0],
+    ],
+
+    /*
+    [
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0],
     ],
+    */
 ];
 
 pub mod minimax {
@@ -100,7 +139,6 @@ pub mod minimax {
         -> BranchValue {
         use crate::coordinates_from_usize;
         use crate::get_board;
-        use crate::piece::info::IDS;
         use crate::board::errors;
         use crate::gen_zobrist_board_hash;
 
@@ -209,7 +247,10 @@ pub mod minimax {
 
             let piece_id = get_board(piece_coordinates, game_state.board_info.board).abs();
             let mut heatmap_val: i8 = 0;
-            if piece_id == IDS[0] || piece_id == IDS[1] || piece_id == IDS[2] || piece_id == IDS[3] {
+
+            // Use heatmaps to encourage pieces to move to advantageous sqaurs
+            // Only use heatmaps early in the game (when white + black points are < 18)
+            if piece_id != 0 && game_state.white_points_info.points_total + game_state.black_points_info.points_total < 18 {
                 heatmap_val = crate::get_board(move_coordinates, PIECE_HEATMAPS[usize::try_from(piece_id - 1).unwrap()]);
             }
 
