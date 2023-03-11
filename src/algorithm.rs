@@ -21,10 +21,10 @@ pub const PIECE_HEATMAPS: [[[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]; IDS.len()] = [
     [
         [0, 0, 3, 3, 3, 0, 0, 0],
         [0, 0, 1, 1, 1, 0, 0, 0],
-        [1, 0, 1, 1, 1, 0, 0, 0],
-        [1, 0, 1, 1, 1, 0, 0, 0],
-        [1, 0, 1, 1, 1, 0, 0, 0],
-        [1, 0, 1, 1, 1, 0, 0, 0],
+        [2, 0, 1, 1, 1, 0, 0, 0],
+        [2, 0, 1, 1, 1, 0, 0, 0],
+        [2, 0, 1, 1, 1, 0, 0, 0],
+        [2, 0, 1, 1, 1, 0, 0, 0],
         [0, 0, 1, 1, 1, 0, 0, 0],
         [0, 0, 3, 3, 3, 0, 0, 0],
     ],
@@ -43,14 +43,14 @@ pub const PIECE_HEATMAPS: [[[i8; BOARD_SIZE[0]]; BOARD_SIZE[1]]; IDS.len()] = [
 
     // Bishop heatmap
     [
-        [0, 0, 1, 1, 1, 0, 0, 0],
-        [0, 0, 1, 1, 1, 0, 0, 0],
-        [0, 0, 1, 1, 1, 0, 0, 0],
-        [0, 0, 1, 1, 1, 0, 0, 0],
-        [0, 0, 1, 1, 1, 0, 0, 0],
-        [0, 0, 1, 1, 1, 0, 0, 0],
-        [0, 0, 1, 1, 1, 0, 0, 0],
-        [0, 0, 1, 1, 1, 0, 0, 0],
+        [0, 1, 1, 1, 1, 0, 0, 0],
+        [0, 1, 1, 1, 1, 0, 0, 0],
+        [0, 1, 1, 1, 1, 0, 0, 0],
+        [0, 1, 1, 1, 1, 0, 0, 0],
+        [0, 1, 1, 1, 1, 0, 0, 0],
+        [0, 1, 1, 1, 1, 0, 0, 0],
+        [0, 1, 1, 1, 1, 0, 0, 0],
+        [0, 1, 1, 1, 1, 0, 0, 0],
     ],
 
     // Queen heatmap
@@ -251,7 +251,9 @@ pub mod minimax {
             // Use heatmaps to encourage pieces to move to advantageous sqaurs
             // Only use heatmaps early in the game (when white + black points are < 18)
             if piece_id != 0 && game_state.white_points_info.points_total + game_state.black_points_info.points_total < 18 {
-                heatmap_val = crate::get_board(move_coordinates, PIECE_HEATMAPS[usize::try_from(piece_id - 1).unwrap()]);
+                let init_val = get_board(piece_coordinates, PIECE_HEATMAPS[usize::try_from(piece_id - 1).unwrap()]);
+                let move_val = get_board(move_coordinates, PIECE_HEATMAPS[usize::try_from(piece_id - 1).unwrap()]);
+                heatmap_val = move_val - init_val; // Get heatmap delta so worse positions aren't moved to from a good position
             }
 
             if !move_error { // Do not check child branches inscase of a move errorpoints_delta: i8,
